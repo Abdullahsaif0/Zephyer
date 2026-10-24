@@ -4,7 +4,11 @@ import { resolve } from "node:path";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { server } from "./server.mjs";
-const dir = resolve(process.env.SOCIAL_ONLY ? "test-results/social-focused" : "test-results/social");
+const dir = resolve(
+  process.env.SOCIAL_ONLY
+    ? "test-results/social-focused"
+    : "test-results/social",
+);
 await mkdir(dir, { recursive: true });
 const fixture = await server(),
   results = [],

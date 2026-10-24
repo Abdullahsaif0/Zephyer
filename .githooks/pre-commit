@@ -4,9 +4,9 @@ staged_ts=$(git diff --cached --name-only --diff-filter=ACMR -- 'src/**/*.ts' 's
 staged_all=$(git diff --cached --name-only --diff-filter=ACMR)
 
 if [ -n "$staged_all" ]; then
-  echo "$staged_all" | grep -E '\.(json|html|mjs|css)$|\.gitignore' | xargs -r npx prettier --check
+  echo "$staged_all" | grep -E '\.(json|html|mjs|css|md|yml)$' | xargs -r npx prettier --check
 fi
 
 if [ -n "$staged_ts" ]; then
-  echo "$staged_ts" | xargs npx eslint --max-warnings 0
+  echo "$staged_ts" | xargs npx eslint --max-warnings 0 || exit 1
 fi
