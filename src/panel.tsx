@@ -171,7 +171,8 @@ function App() {
           Math.max(...a.variants.map((v) => v.width * v.height), 0),
       );
     else if (sort === "name") rs.sort((a, b) => a.name.localeCompare(b.name));
-    else rs.sort((a, b) => a.updated - b.updated);
+    // Match the gallery's "Discovered" ordering: discovery sequence, not update time.
+    else rs.sort((a, b) => (a.discoveredOrder || 0) - (b.discoveredOrder || 0));
     return rs;
   }, [data?.records, query, min, fmt, sort, collectionView, reason]);
   const selected =
@@ -204,6 +205,17 @@ function App() {
     start = Math.max(0, Math.floor(safeScroll / rowHeight) - 2),
     end = Math.min(rows, Math.ceil((safeScroll + viewport) / rowHeight) + 2),
     rendered = filtered.slice(start * columns, end * columns);
+  // A per-variant quality choice is only renderable while exactly one image
+  // is selected; drop stale variant URLs so the select stays valid and the
+  // next download cannot carry a quality belonging to another image.
+  useEffect(() => {
+    const valid =
+      output.quality === "best" ||
+      output.quality === "displayed" ||
+      (selected.length === 1 &&
+        selected[0]?.variants.some((v) => v.url === output.quality));
+    if (!valid) setOutput((o) => ({ ...o, quality: "best" }));
+  }, [output.quality, selected]);
   useEffect(() => {
     if (list.current && list.current.scrollTop > safeScroll) {
       list.current.scrollTop = safeScroll;

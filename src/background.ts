@@ -341,9 +341,7 @@ async function commitSettings(next: Settings) {
       .catch(() => {});
     notify(tab.id);
   }
-  await serialized("scan-recovery", () =>
-    chrome.storage.local.set({ scanRecovery: Object.fromEntries(scans) }),
-  );
+  persistScans();
 }
 let settings: Settings = { ...defaults };
 let initialized: Promise<void>;
@@ -355,6 +353,37 @@ function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
     if (locks.get(key) === p) locks.delete(key);
   }).catch(() => {});
   return p;
+}
+/**
+ * scanRecovery durability: progress updates are debounced (they fire per
+ * SCAN_PROGRESS burst), while terminal states flush immediately so a worker
+ * death right after Stop/complete still recovers to the correct state.
+ * Pending debounce timers are fire-and-forget by design — the 1-minute
+ * zephyer-recover alarm is the backstop if the worker dies mid-debounce.
+ */
+let scanRecoveryTimer: ReturnType<typeof setTimeout> | undefined;
+let scanRecoveryPending = false;
+function persistScans(immediate = false) {
+  const write = () =>
+    serialized("scan-recovery", () =>
+      chrome.storage.local.set({ scanRecovery: Object.fromEntries(scans) }),
+    );
+  if (immediate) {
+    if (scanRecoveryTimer) clearTimeout(scanRecoveryTimer);
+    scanRecoveryTimer = undefined;
+    scanRecoveryPending = false;
+    void write();
+    return;
+  }
+  scanRecoveryPending = true;
+  if (scanRecoveryTimer) return;
+  scanRecoveryTimer = setTimeout(() => {
+    scanRecoveryTimer = undefined;
+    if (scanRecoveryPending) {
+      scanRecoveryPending = false;
+      void write();
+    }
+  }, 1000);
 }
 const init = () =>
   (initialized ??= chrome.storage.local
@@ -1917,12 +1946,15 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
         if (ui || !Array.isArray(m.records) || m.records.length > 60)
           throw Error("Invalid discovery");
         const discoveryTab = await chrome.tabs.get(tabId);
+        let discoveryUrl: URL | undefined;
+        try {
+          discoveryUrl = discoveryTab.url ? new URL(discoveryTab.url) : undefined;
+        } catch {}
         if (
           !settings.instagramStoriesEnabled &&
-          /(^|\.)instagram\.com$/.test(
-            new URL(discoveryTab.url || "https://invalid/").hostname,
-          ) &&
-          new URL(discoveryTab.url!).pathname.startsWith("/stories/")
+          discoveryUrl &&
+          /(^|\.)instagram\.com$/.test(discoveryUrl.hostname) &&
+          discoveryUrl.pathname.startsWith("/stories/")
         )
           return;
         const discoveryPower = powerFor(discoveryTab);
@@ -2174,11 +2206,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
               phase: "stopped",
               reason: "Scan stopped · collected images retained",
             });
-            await serialized("scan-recovery", () =>
-              chrome.storage.local.set({
-                scanRecovery: Object.fromEntries(scans),
-              }),
-            );
+            persistScans(true);
             await publishPower(tabId);
             notify(tabId);
           }
@@ -2205,11 +2233,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
                 phase: "stopped",
                 reason: "Scan could not start · retry on an accessible webpage",
               });
-              await serialized("scan-recovery", () =>
-                chrome.storage.local.set({
-                  scanRecovery: Object.fromEntries(scans),
-                }),
-              );
+              persistScans(true);
               await publishPower(tabId);
               notify(tabId);
             }
@@ -2300,11 +2324,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           summary.pending =
             collected.length - summary.accepted - summary.excluded;
           summary.count = collected.length;
-          await serialized("scan-recovery", () =>
-            chrome.storage.local.set({
-              scanRecovery: Object.fromEntries(scans),
-            }),
-          );
+          persistScans();
           if (!["running", "paused"].includes(summary.state)) {
             manualCollection.delete(tabId);
           }
@@ -2319,9 +2339,6 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
         await serialized("offscreen", async () => {
           if (!processingImages) await chrome.offscreen.closeDocument();
         });
-        return true;
-      case "OPEN":
-        await chrome.sidePanel.open({ tabId });
         return true;
       case "PREFERENCES":
       case "SETTINGS": {
@@ -2675,7 +2692,8 @@ chrome.contextMenus.onClicked.addListener((i, t) => {
   if (i.menuItemId === "zephyer-library" && t?.id)
     void chrome.sidePanel.open({ tabId: t.id });
 });
-chrome.alarms.onAlarm.addListener(() => {
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== "zephyer-recover") return;
   pump();
   void getJobs().then((jobs) =>
     Promise.all(
@@ -2687,6 +2705,8 @@ chrome.alarms.onAlarm.addListener(() => {
   );
 });
 chrome.runtime.onStartup.addListener(() => {
+  // Chrome can drop alarms across browser restarts; re-create before recovering.
+  void chrome.alarms.create("zephyer-recover", { periodInMinutes: 1 });
   void recover();
 });
 void recover();

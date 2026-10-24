@@ -63,7 +63,9 @@ expect(_precise.length).toBe(messageTypes.length);
 
 /**
  * Messages the background does not route to a `case` of its own: broadcast
- * pushes it originates, or probes it sends into content scripts.
+ * pushes it originates, probes it sends into content scripts, and OPEN which
+ * is intercepted before the router to preserve the click's user activation
+ * (background.ts early-return block).
  */
 const broadcastOnly = new Set([
   "NOTICE",
@@ -71,6 +73,7 @@ const broadcastOnly = new Set([
   "UI_STATE",
   "PING",
   "PAGE_BYTES",
+  "OPEN",
 ]);
 
 const source = (file: string) =>
