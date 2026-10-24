@@ -70,18 +70,177 @@ import {
   validDiscoverySettings,
   normalizedFormat,
 } from "./discovery";
-const manualCollection = new Set<number>();
-const scanHolds = new Set<number>();
-const onePass = new Map<number, string>();
+
+/**
+ * All per-tab service-worker state lives in one map with one cleanup path
+ * (releaseTab). Each historical Map/Set is a thin accessor over TabState, so
+ * call sites keep Map/Set syntax while the invariant "a tab's state is fully
+ * owned by tabs" is enforced in one place. powerRevisions is deliberately
+ * global and monotonic per tab: revisions must never go backward, even after
+ * a tab's state is released (a reset revision could let stale callbacks win).
+ */
+type TabState = {
+  manualCollection: boolean;
+  scanHold: boolean;
+  onePass?: string | undefined;
+  publishedPower?: string | undefined;
+  sessionId?: string | undefined;
+  scanDocs: Map<number, string>;
+  frameScans: Map<number, ScanSession>;
+  scan?: ScanSession | undefined;
+  mode: boolean;
+  sourceRoute?: string | undefined;
+  notifyTimer?: ReturnType<typeof setTimeout> | undefined;
+  verificationControllers: Set<AbortController>;
+};
+const tabs = new Map<number, TabState>();
+const ensureTab = (id: number): TabState => {
+  let t = tabs.get(id);
+  if (!t) {
+    t = {
+      manualCollection: false,
+      scanHold: false,
+      scanDocs: new Map(),
+      frameScans: new Map(),
+      mode: false,
+      verificationControllers: new Set(),
+    };
+    tabs.set(id, t);
+  }
+  return t;
+};
+const tabField = <V>(
+  pick: (t: TabState) => V | undefined,
+  put: (t: TabState, v: V | undefined) => void,
+) => ({
+  get: (id?: number): V | undefined => {
+    if (id === undefined) return undefined;
+    const t = tabs.get(id);
+    return t ? pick(t) : undefined;
+  },
+  set: (id: number, v: V): void => put(ensureTab(id), v),
+  delete: (id: number): void => {
+    const t = tabs.get(id);
+    if (t) put(t, undefined);
+  },
+  has: (id: number): boolean => {
+    const t = tabs.get(id);
+    return !!t && pick(t) !== undefined;
+  },
+  entries: function* (): Generator<[number, V]> {
+    for (const [id, t] of tabs) {
+      const v = pick(t);
+      if (v !== undefined) yield [id, v];
+    }
+  },
+  values: function* (): Generator<V> {
+    for (const [, v] of this.entries()) yield v;
+  },
+  [Symbol.iterator]() {
+    return this.entries();
+  },
+});
+const tabFlag = (pick: (t: TabState) => boolean, put: (t: TabState, v: boolean) => void) => ({
+  add: (id: number): void => put(ensureTab(id), true),
+  has: (id: number): boolean => {
+    const t = tabs.get(id);
+    return !!t && pick(t);
+  },
+  delete: (id: number): void => {
+    const t = tabs.get(id);
+    if (t) put(t, false);
+  },
+});
+const manualCollection = tabFlag(
+  (t) => t.manualCollection,
+  (t, v) => (t.manualCollection = v),
+);
+const scanHolds = tabFlag(
+  (t) => t.scanHold,
+  (t, v) => (t.scanHold = v),
+);
+const onePass = tabField<string>(
+  (t) => t.onePass,
+  (t, v) => (t.onePass = v),
+);
+const publishedPower = tabField<string>(
+  (t) => t.publishedPower,
+  (t, v) => (t.publishedPower = v),
+);
+const sessionIds = tabField<string>(
+  (t) => t.sessionId,
+  (t, v) => (t.sessionId = v),
+);
+const scanDocs = tabField<Map<number, string>>(
+  (t) => t.scanDocs,
+  (t, v) => (t.scanDocs = v ?? new Map()),
+);
+const frameScans = tabField<Map<number, ScanSession>>(
+  (t) => t.frameScans,
+  (t, v) => (t.frameScans = v ?? new Map()),
+);
+const scans = tabField<ScanSession>(
+  (t) => t.scan,
+  (t, v) => (t.scan = v),
+);
+const modes = tabField<boolean>(
+  (t) => t.mode || undefined,
+  (t, v) => (t.mode = !!v),
+);
+const sourceRoutes = tabField<string>(
+  (t) => t.sourceRoute,
+  (t, v) => (t.sourceRoute = v),
+);
+const notifyTimers = tabField<ReturnType<typeof setTimeout>>(
+  (t) => t.notifyTimer,
+  (t, v) => (t.notifyTimer = v),
+);
+/** Abort controllers belong to their tab; the registry is derived. */
+const verificationControllers = {
+  set: (controller: AbortController, id: number): void => {
+    ensureTab(id).verificationControllers.add(controller);
+  },
+  delete: (controller: AbortController, id?: number): void => {
+    if (id === undefined) {
+      for (const t of tabs.values()) t.verificationControllers.delete(controller);
+      return;
+    }
+    tabs.get(id)?.verificationControllers.delete(controller);
+  },
+  /** Whether the tab currently owns at least one active controller. */
+  has: (id: number): boolean => {
+    const t = tabs.get(id);
+    return !!t && t.verificationControllers.size > 0;
+  },
+  *ownedBy(id: number): Generator<AbortController> {
+    const t = tabs.get(id);
+    if (t) yield* t.verificationControllers;
+  },
+};
+/** Release every piece of a tab's state. The only per-tab cleanup path. */
+function releaseTab(id: number) {
+  const t = tabs.get(id);
+  if (t) {
+    for (const c of t.verificationControllers) c.abort();
+    if (t.notifyTimer) clearTimeout(t.notifyTimer);
+    tabs.delete(id);
+  }
+  for (let i = verificationQueue.length - 1; i >= 0; i--) {
+    const entry = verificationQueue[i];
+    if (entry?.tabId === id) verificationQueue.splice(i, 1);
+  }
+  for (const key of verificationSeen)
+    if (key.startsWith(`${id}:`)) verificationSeen.delete(key);
+  releasePreviews(id);
+}
 const previewRequests = new Map<
   string,
   { owner: number; cancelled: boolean }
 >();
 const previewUrls = new Map<string, number>();
 const powerEpoch = crypto.randomUUID();
+// Monotonic per-tab revision counter; intentionally survives releaseTab.
 const powerRevisions = new Map<number, number>();
-const publishedPower = new Map<number, string>();
-const verificationControllers = new Map<AbortController, number>();
 function powerFor(tab: Pick<chrome.tabs.Tab, "id" | "url">) {
   const state = {
     ...pagePower(
@@ -91,7 +250,7 @@ function powerFor(tab: Pick<chrome.tabs.Tab, "id" | "url">) {
       activatedTabs.has(tab.id!),
       onePass.has(tab.id!) ||
         (manualCollection.has(tab.id!) &&
-          scans.get(tab.id!)?.state !== "paused"),
+          scans.get(tab.id)?.state !== "paused"),
     ),
     epoch: powerEpoch,
     collectionId: liveCollections.get(tab.id!),
@@ -151,8 +310,8 @@ async function commitSettings(next: Settings) {
     }
     if (!power.collecting) {
       if (!power.effectiveEnabled) modes.set(tab.id, false);
-      for (const [controller, owner] of verificationControllers)
-        if (owner === tab.id) controller.abort();
+      for (const controller of verificationControllers.ownedBy(tab.id))
+        controller.abort();
       for (let i = verificationQueue.length - 1; i >= 0; i--) {
         const entry = verificationQueue[i];
         if (entry?.tabId === tab.id) verificationQueue.splice(i, 1);
@@ -186,12 +345,7 @@ async function commitSettings(next: Settings) {
     chrome.storage.local.set({ scanRecovery: Object.fromEntries(scans) }),
   );
 }
-const sessionIds = new Map<number, string>();
-const scanDocs = new Map<number, Map<number, string>>();
 let settings: Settings = { ...defaults };
-const frameScans = new Map<number, Map<number, ScanSession>>();
-const scans = new Map<number, ScanSession>(),
-  modes = new Map<number, boolean>();
 let initialized: Promise<void>;
 const locks = new Map<string, Promise<unknown>>();
 function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -366,7 +520,6 @@ function recordFrom(
     updated: Date.now(),
   };
 }
-const notifyTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const verificationQueue: ImageRecord[] = [];
 const verificationSeen = new Set<string>();
 const verificationGrants = new Set<string>();
@@ -1491,7 +1644,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           const deadline = Date.now() + 12000;
           while (
             Date.now() < deadline &&
-            ([...verificationControllers.values()].includes(tabId) ||
+            (verificationControllers.has(tabId) ||
               verificationQueue.some((r) => r.tabId === tabId))
           )
             await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1501,8 +1654,8 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
             .get(tabId)
             .catch(() => undefined);
           if (!currentTab || !powerFor(currentTab).collecting) {
-            for (const [controller, owner] of verificationControllers)
-              if (owner === tabId) controller.abort();
+            for (const controller of verificationControllers.ownedBy(tabId))
+              controller.abort();
             for (let i = verificationQueue.length - 1; i >= 0; i--) {
               const entry = verificationQueue[i];
               if (entry?.tabId === tabId) verificationQueue.splice(i, 1);
@@ -2457,27 +2610,16 @@ chrome.downloads.onChanged.addListener((delta) => {
       .catch(console.error);
 });
 async function clear(tabId: number, resetPage = true) {
-  scanHolds.delete(tabId);
+  releaseTab(tabId);
   await init();
-  manualCollection.delete(tabId);
-  onePass.delete(tabId);
   powerRevisions.set(tabId, (powerRevisions.get(tabId) || 0) + 1);
-  for (const [controller, owner] of verificationControllers)
-    if (owner === tabId) controller.abort();
   await serialized(`records:${tabId}`, async () => {
     await detach(tabId);
     await removeTab(tabId);
   });
-  scans.delete(tabId);
-  frameScans.delete(tabId);
-  sessionIds.delete(tabId);
-  scanDocs.delete(tabId);
-  for (const key of verificationSeen)
-    if (key.startsWith(`${tabId}:`)) verificationSeen.delete(key);
   await serialized("scan-recovery", () =>
     chrome.storage.local.set({ scanRecovery: Object.fromEntries(scans) }),
   );
-  modes.delete(tabId);
   if (resetPage)
     chrome.tabs.sendMessage(tabId, { type: "RESET" }).catch(() => {});
   notify(tabId);
@@ -2490,7 +2632,6 @@ chrome.webNavigation.onCommitted.addListener((d) => {
     void clear(d.tabId, false);
   }
 });
-const sourceRoutes = new Map<number, string>();
 chrome.webNavigation.onHistoryStateUpdated.addListener((d) => {
   if (d.frameId !== 0) return;
   const previous = sourceRoutes.get(d.tabId);
@@ -2507,33 +2648,16 @@ chrome.webNavigation.onHistoryStateUpdated.addListener((d) => {
   } else void clear(d.tabId);
 });
 chrome.tabs.onRemoved.addListener((id) => {
-  scanHolds.delete(id);
-  sourceRoutes.delete(id);
-  releasePreviews(id);
-  onePass.delete(id);
-  for (const [controller, owner] of verificationControllers)
-    if (owner === id) controller.abort();
-  for (let i = verificationQueue.length - 1; i >= 0; i--) {
-    const entry = verificationQueue[i];
-    if (entry?.tabId === id) verificationQueue.splice(i, 1);
-  }
+  releaseTab(id);
   void init().then(() =>
     serialized(`records:${id}`, async () => {
       await closeTab(id);
       await removeTab(id);
     }),
   );
-  manualCollection.delete(id);
-  scans.delete(id);
-  frameScans.delete(id);
-  sessionIds.delete(id);
-  scanDocs.delete(id);
-  for (const key of verificationSeen)
-    if (key.startsWith(`${id}:`)) verificationSeen.delete(key);
   void serialized("scan-recovery", () =>
     chrome.storage.local.set({ scanRecovery: Object.fromEntries(scans) }),
   );
-  modes.delete(id);
 });
 chrome.runtime.onInstalled.addListener(async () => {
   await init();
