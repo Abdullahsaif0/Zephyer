@@ -43,8 +43,40 @@ const image = png();
 export async function server() {
   const attempts = new Map();
   const requests = new Map();
+  // Live per-host concurrency probe for the queue-serialization invariant.
+  // GETs and HEADs are tracked separately: the download queue serializes
+  // GETs per host, while the (deliberately global, 2-slot) verification
+  // queue may probe several HEADs concurrently.
+  const serial = { current: 0, max: 0, total: 0, headCurrent: 0, headMax: 0, log: [] };
   const s = http.createServer((req, res) => {
     const url = new URL(req.url, "http://localhost");
+    if (url.pathname === "/serial.png") {
+      serial.total++;
+      const kind = req.method === "HEAD" ? "HEAD" : "GET";
+      const entry = {
+        kind,
+        i: url.searchParams.get("i"),
+        start: Date.now(),
+      };
+      serial.log.push(entry);
+      if (req.method === "HEAD") {
+        serial.headCurrent++;
+        serial.headMax = Math.max(serial.headMax, serial.headCurrent);
+      } else {
+        serial.current++;
+        serial.max = Math.max(serial.max, serial.current);
+      }
+      return setTimeout(() => {
+        entry.end = Date.now();
+        if (req.method === "HEAD") serial.headCurrent--;
+        else serial.current--;
+        res.writeHead(200, {
+          "Content-Type": "image/png",
+          "Content-Length": image.length,
+        });
+        res.end(req.method === "HEAD" ? undefined : image);
+      }, 350);
+    }
     if (req.headers.range)
       requests.set(
         "RANGE " + url.pathname,
@@ -147,6 +179,7 @@ export async function server() {
   return {
     server: s,
     requests,
+    serial,
     origin: `http://127.0.0.1:${s.address().port}`,
   };
 }

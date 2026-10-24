@@ -24,7 +24,8 @@
     "test:audit": "node tests/audit-browser.mjs",
     "test:panel-scroll": "node tests/panel-scroll-browser.mjs",
     "test:social": "node tests/social-browser.mjs",
-    "test:social-live": "node tests/social-live.mjs"
+    "test:social-live": "node tests/social-live.mjs",
+    "test:invariants": "node tests/invariants-browser.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.2",
