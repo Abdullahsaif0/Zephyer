@@ -1,0 +1,41 @@
+{
+  "name": "zephyer",
+  "version": "1.7.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "test": "vitest run",
+    "test:browser": "node tests/browser.mjs",
+    "package": "npm run build && node scripts/package.mjs",
+    "test:compatibility": "node tests/compatibility.mjs",
+    "format": "prettier --write src tests scripts *.json *.html",
+    "test:dock": "node tests/dock-browser.mjs",
+    "test:polish": "node tests/polish-browser.mjs",
+    "test:selection-downloads": "node tests/selection-downloads-browser.mjs",
+    "test:zip-actions": "node tests/zip-actions-browser.mjs",
+    "test:liquid": "node tests/liquid-browser.mjs",
+    "test:power": "node tests/power-browser.mjs",
+    "test:gallery": "node tests/gallery-browser.mjs",
+    "test:migration": "node tests/migration-browser.mjs",
+    "test:audit": "node tests/audit-browser.mjs",
+    "test:panel-scroll": "node tests/panel-scroll-browser.mjs",
+    "test:social": "node tests/social-browser.mjs",
+    "test:social-live": "node tests/social-live.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "playwright": "^1.56.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.0",
+    "vitest": "^3.2.4"
+  }
+}
