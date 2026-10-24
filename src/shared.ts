@@ -36,7 +36,8 @@ export type ActivationStatus = {
     | "missing-receiver"
     | "initialization"
     | "navigation"
-    | "rendering";
+    | "rendering"
+    | undefined;
   detail: string;
   updated: number;
 };
@@ -60,8 +61,8 @@ export type Variant = {
   format: string;
   method: string;
   verified: boolean;
-  bytes?: number;
-  probeError?: string;
+  bytes?: number | undefined;
+  probeError?: string | undefined;
 };
 export type Collection = {
   id: string;
@@ -73,16 +74,16 @@ export type Collection = {
   state: "live" | "detached";
   revision: number;
   nextOrder: number;
-  scan?: ScanSession;
+  scan?: ScanSession | undefined;
 };
 export type ImageRecord = {
-  media?: MediaContext;
+  media?: MediaContext | undefined;
   collectionId?: string;
   collectionRevision?: number;
-  discoveredOrder?: number;
+  discoveredOrder?: number | undefined;
   detached?: boolean;
   eligibility?: Eligibility;
-  userIncluded?: boolean;
+  userIncluded?: boolean | undefined;
   signals?: {
     interfaceAsset: boolean;
     avatar: boolean;
@@ -185,13 +186,13 @@ export type JobItem = {
   record: ImageRecord;
   state: ItemState;
   attempts: number;
-  downloadId?: number;
-  actualUrl?: string;
+  downloadId?: number | undefined;
+  actualUrl?: string | undefined;
   fallback?: boolean;
-  error?: string;
+  error?: string | undefined;
   file?: string;
-  blobUrl?: string;
-  nextAt?: number;
+  blobUrl?: string | undefined;
+  nextAt?: number | undefined;
 };
 export type DownloadJob = {
   clientRequestId?: string;
@@ -211,7 +212,7 @@ export type DownloadJob = {
     itemIds: string[];
     blobUrl: string;
     state: "downloading" | "done" | "failed";
-    error?: string;
+    error?: string | undefined;
   }[];
   zipPart: number;
   summary?: string;

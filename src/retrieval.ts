@@ -2,8 +2,8 @@ import { boundedBlob, type RetrievalAttempt } from "./shared";
 import { imageFormats, normalizedFormat, sniffImage } from "./discovery";
 type Probe = {
   format: string;
-  bytes?: number;
-  error?: string;
+  bytes?: number | undefined;
+  error?: string | undefined;
   attempt: RetrievalAttempt;
 };
 const cache = new Map<string, { until: number; value: Probe }>();

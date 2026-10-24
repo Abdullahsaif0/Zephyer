@@ -75,15 +75,17 @@ export class Dock {
   private orientation = "horizontal";
   private model?: Model;
   private initialized = false;
-  private drag?: {
-    id: number;
-    startX: number;
-    startY: number;
-    x: number;
-    y: number;
-    old: DockLayout;
-    moved: boolean;
-  };
+  private drag?:
+    | {
+        id: number;
+        startX: number;
+        startY: number;
+        x: number;
+        y: number;
+        old: DockLayout;
+        moved: boolean;
+      }
+    | undefined;
   private x = 0;
   private y = 0;
   private raf = 0;

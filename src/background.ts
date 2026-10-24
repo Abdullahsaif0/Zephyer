@@ -640,10 +640,12 @@ function pump() {
 }
 async function pageBytes(r: ImageRecord, url: string) {
   try {
+    const options: chrome.tabs.MessageSendOptions = { frameId: r.frameId };
+    if (r.documentId) options.documentId = r.documentId;
     const response = await chrome.tabs.sendMessage(
       r.tabId,
       { type: "PAGE_BYTES", url },
-      { frameId: r.frameId, documentId: r.documentId || undefined },
+      options,
     );
     if (response?.data) return response.data;
   } catch {}
@@ -669,10 +671,14 @@ async function freshMedia(
     at: Date.now(),
   });
   try {
+    const options: chrome.tabs.MessageSendOptions = {
+      frameId: record.frameId,
+    };
+    if (record.documentId) options.documentId = record.documentId;
     const raw = await chrome.tabs.sendMessage(
       record.tabId,
       { type: "REFRESH_MEDIA", id: record.id, media: record.media },
-      { frameId: record.frameId, documentId: record.documentId || undefined },
+      options,
     );
     if (!Array.isArray(raw) || raw.length > 80) return;
     const valid = raw.filter(
@@ -2329,9 +2335,10 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
               return "images";
             }
           })();
+          const jobCollectionId = targetCollection?.id || first.collectionId;
           const job: DownloadJob = {
             clientRequestId: m.requestId,
-            collectionId: targetCollection?.id || first.collectionId,
+            ...(jobCollectionId ? { collectionId: jobCollectionId } : {}),
             allowedFormats: [...jobSettings.allowedFormats],
             id: crypto.randomUUID(),
             tabId: targetCollection?.tabId ?? tabId,
