@@ -1,4 +1,9 @@
-import { archiveFits, resized, type Output } from "./shared";
+import {
+  archiveFits,
+  resized,
+  DownloadFailure,
+  type Output,
+} from "./shared";
 import { zip, type Zippable } from "fflate";
 import { normalizedFormat, sniffImage } from "./discovery";
 import { fetchImageBytes } from "./retrieval";
@@ -90,7 +95,7 @@ async function image(
     !b.type.startsWith("image/") &&
     !["application/octet-stream", "binary/octet-stream"].includes(b.type)
   )
-    throw Error(`Not an image: ${b.type}`);
+    throw new DownloadFailure("permanent", `Not an image: ${b.type}`);
   const format =
     detected !== "unknown"
       ? detected
@@ -105,7 +110,7 @@ async function image(
       bitmap.close();
     } catch {
       if (!b.type.startsWith("image/"))
-        throw Error("Response is not a decodable image");
+        throw new DownloadFailure("permanent", "Response is not a decodable image");
     }
     return { blobUrl: objectUrl(b), bytes: b.size, format, width, height };
   }
@@ -122,7 +127,8 @@ async function image(
     format === "svg+xml" ||
     format === "svg";
   if (animated && !o.firstFrame)
-    throw Error(
+    throw new DownloadFailure(
+      "permanent",
       "Animation/vector conversion requires “Allow first-frame/static conversion”",
     );
   const bitmap = await decode(b);
@@ -131,7 +137,7 @@ async function image(
   const dims = resized(width, height, o.width, o.height, o.upscale);
   if (dims.width * dims.height > 64_000_000) {
     bitmap.close();
-    throw Error("Conversion exceeds 64 megapixels");
+    throw new DownloadFailure("permanent", "Conversion exceeds 64 megapixels");
   }
   const canvas = document.createElement("canvas");
   canvas.width = dims.width;
@@ -154,7 +160,7 @@ async function image(
     );
   });
   if (result.type !== `image/${o.format}`)
-    throw Error("Requested image encoder unavailable");
+    throw new DownloadFailure("permanent", "Requested image encoder unavailable");
   return {
     blobUrl: objectUrl(result),
     bytes: result.size,

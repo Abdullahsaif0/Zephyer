@@ -34,6 +34,10 @@ import {
   sanitize,
   filename,
   candidates,
+  DownloadFailure,
+  failureKind,
+  permanentFailure as sharedPermanentFailure,
+  userCancelled as sharedUserCancelled,
   type DownloadJob,
   type Collection,
   type ImageRecord,
@@ -252,14 +256,10 @@ const init = () =>
     }));
 const trusted = (s: chrome.runtime.MessageSender) =>
   s.id === chrome.runtime.id && !!s.url?.startsWith(chrome.runtime.getURL(""));
-const permanentFailure = (e: unknown) =>
-  /HTTP (401|403)|SERVER_UNAUTHORIZED|SERVER_FORBIDDEN|requires .*conversion|exceeds|Invalid|Not an image|not a decodable|encoder unavailable|No .*candidates|No eligible format|Conversion failed/i.test(
-    String(e),
-  );
-const userCancelled = (e: unknown) =>
-  /USER_CANCEL(?:L)?ED|user cancel(?:l)?ed|download cancel(?:l)?ed/i.test(
-    String(e),
-  );
+// Structured classification from shared.ts; the local names are re-exported
+// for the queue so retry logic branches on FailureKind, not message text.
+const permanentFailure = sharedPermanentFailure;
+const userCancelled = sharedUserCancelled;
 function cancellationSummary(j: DownloadJob) {
   const remaining = j.items.some((i) =>
     ["queued", "fetching", "downloading"].includes(i.state),
@@ -771,7 +771,7 @@ async function converted(
       return { ...result, url: v.url, fallback: index > 0 };
     } catch (e) {
       last = String(e);
-      if (/429|503/.test(last)) throw e;
+      if (failureKind(e) === "rate-limited") throw e;
     }
   }
   if (allowRefresh && /HTTP (401|403|404|410)/.test(last)) {
@@ -872,7 +872,10 @@ async function runItem(job: DownloadJob, itemId: string) {
           const probe = await probeImage(candidate.url);
           retrieval.push(probe.attempt);
           if ([429, 503].includes(probe.attempt.status || 0))
-            throw Error(`HTTP ${probe.attempt.status} · host backoff active`);
+            throw new DownloadFailure(
+              "rate-limited",
+              `HTTP ${probe.attempt.status} · host backoff active`,
+            );
           if (
             [401, 403, 404, 410].includes(probe.attempt.status || 0) &&
             !item.refreshAttempted
@@ -927,7 +930,8 @@ async function runItem(job: DownloadJob, itemId: string) {
       }
       const finalUrl = vs[index]?.url;
       if (!finalUrl)
-        throw Error(
+        throw new DownloadFailure(
+          "permanent",
           "No eligible format for this candidate; enable its actual format in Preferences",
         );
       url = finalUrl;

@@ -363,6 +363,41 @@ export type Message =
       scan: ScanSession;
       settings: Settings;
     };
+/**
+ * Structured download-pipeline failures. Retry logic must branch on `kind`
+ * (failureKind / permanentFailure / userCancelled), never on message text —
+ * string matching is only permitted inside failureKind as the fallback for
+ * bare Chromium `chrome.downloads` error strings, which arrive as text.
+ */
+export type FailureKind =
+  | "permanent"
+  | "cancelled"
+  | "rate-limited"
+  | "transient";
+export class DownloadFailure extends Error {
+  readonly kind: FailureKind;
+  constructor(kind: FailureKind, message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "DownloadFailure";
+    this.kind = kind;
+  }
+}
+export const failureKind = (e: unknown): FailureKind => {
+  if (e instanceof DownloadFailure) return e.kind;
+  const s = String(e);
+  if (/USER_CANCEL(?:L)?ED|user cancel(?:l)?ed|download cancel(?:l)?ed/i.test(s))
+    return "cancelled";
+  if (
+    /HTTP (401|403)|SERVER_UNAUTHORIZED|SERVER_FORBIDDEN|requires .*conversion|exceeds|Invalid|Not an image|not a decodable|encoder unavailable|No .*candidates|No eligible format|Conversion failed/i.test(
+      s,
+    )
+  )
+    return "permanent";
+  return "transient";
+};
+export const permanentFailure = (e: unknown) => failureKind(e) === "permanent";
+export const userCancelled = (e: unknown) => failureKind(e) === "cancelled";
+
 export const safeUrl = (url: string) => {
   try {
     return ["https:", "http:", "data:", "blob:"].includes(
