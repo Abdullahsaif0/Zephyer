@@ -12,7 +12,7 @@ function App() {
   const load = () =>
     rpc<ActivationStatus>({ type: "ACTIVATION_STATUS", tabId })
       .then(setStatus)
-      .catch((e) => setError(String(e)));
+      .catch((e) => { setError(String(e)); });
   useEffect(() => {
     void load();
   }, []);
@@ -87,7 +87,7 @@ function App() {
             a.href = url;
             a.download = "zephyer-activation.json";
             a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            setTimeout(() => { URL.revokeObjectURL(url); }, 1000);
           }}
         >
           Export local diagnostic

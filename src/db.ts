@@ -39,8 +39,8 @@ export async function all<T>(store: string): Promise<T[]> {
   const d = await db();
   return new Promise((resolve, reject) => {
     const r = d.transaction(store).objectStore(store).getAll();
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
+    r.onsuccess = () => { resolve(r.result); };
+    r.onerror = () => { reject(r.error); };
   });
 }
 export async function put(store: string, values: unknown[]) {
@@ -84,10 +84,9 @@ export async function put(store: string, values: unknown[]) {
         writeBatch();
       };
     }
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () =>
-      reject(tx.error || new Error("Database transaction aborted"));
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(tx.error); };
+    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
   });
 }
 export async function removeTab(tabId: number) {
@@ -102,10 +101,9 @@ export async function removeTab(tabId: number) {
         r.result.continue();
       }
     };
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () =>
-      reject(tx.error || new Error("Database transaction aborted"));
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(tx.error); };
+    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
   });
 }
 export async function getRecords(tabId: number): Promise<ImageRecord[]> {
@@ -135,10 +133,9 @@ async function readRecordBatch(ids: string[]): Promise<ImageRecord[]> {
         if (request.result) values.push(request.result);
       };
     }
-    tx.oncomplete = () => resolve(values);
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () =>
-      reject(tx.error || new Error("Database transaction aborted"));
+    tx.oncomplete = () => { resolve(values); };
+    tx.onerror = () => { reject(tx.error); };
+    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
   });
 }
 
@@ -148,8 +145,8 @@ export async function getCollection(
   const d = await db();
   return new Promise((resolve, reject) => {
     const r = d.transaction("collections").objectStore("collections").get(id);
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
+    r.onsuccess = () => { resolve(r.result); };
+    r.onerror = () => { reject(r.error); };
   });
 }
 export async function collectionRecords(id: string): Promise<ImageRecord[]> {
@@ -170,12 +167,14 @@ async function pagedRecords(
         .objectStore("records")
         .index(index)
         .getAll(range, 200);
-      r.onsuccess = () => resolve(r.result);
-      r.onerror = () => reject(r.error);
+      r.onsuccess = () => { resolve(r.result); };
+      r.onerror = () => { reject(r.error); };
     });
     values.push(...rows);
     if (rows.length < 200) return values;
-    after = rows[rows.length - 1].id;
+    const last = rows[rows.length - 1];
+    if (!last) return values;
+    after = last.id;
   }
 }
 export async function deleteCollection(id: string) {
@@ -190,10 +189,9 @@ export async function deleteCollection(id: string) {
         r.result.continue();
       }
     };
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () =>
-      reject(tx.error || new Error("Database transaction aborted"));
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(tx.error); };
+    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
   });
 }
 
@@ -209,10 +207,9 @@ export async function patchCollection(
     r.onsuccess = () => {
       if (r.result) store.put({ ...r.result, ...changes });
     };
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () =>
-      reject(tx.error || new Error("Database transaction aborted"));
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(tx.error); };
+    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
   });
 }
 export async function deleteRecords(ids: string[]) {
@@ -220,9 +217,8 @@ export async function deleteRecords(ids: string[]) {
   return new Promise<void>((resolve, reject) => {
     const tx = d.transaction("records", "readwrite");
     for (const id of ids) tx.objectStore("records").delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () =>
-      reject(tx.error || new Error("Database transaction aborted"));
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(tx.error); };
+    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
   });
 }

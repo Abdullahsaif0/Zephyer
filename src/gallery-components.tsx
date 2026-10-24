@@ -52,7 +52,7 @@ export function Photo({
       attempt === 0
     ) {
       setUrl(source.url);
-      return () => controller.abort();
+      return () => { controller.abort(); };
     }
     void preview(
       record,
@@ -99,13 +99,11 @@ export function Photo({
             ? `${record.selected ? "Deselect" : "Select"} ${record.name || "image"}`
             : `View ${record.name || "image"}`
         }
-        onClick={() =>
-          selecting && allowed
-            ? choose()
-            : !revealed
-              ? setRevealedKey(revealKey)
-              : open()
-        }
+        onClick={() => {
+          if (selecting && allowed) choose();
+          else if (!revealed) setRevealedKey(revealKey);
+          else open();
+        }}
       >
         {url && !error ? (
           <img
@@ -144,7 +142,7 @@ export function Photo({
         <button
           className="photo-retry"
           title={error}
-          onClick={() => setAttempt((n) => n + 1)}
+          onClick={() => { setAttempt((n) => n + 1); }}
         >
           <Icon name="retry" />
           Retry
@@ -307,7 +305,7 @@ export function Viewer({
           <button
             aria-label="Image details"
             aria-pressed={info}
-            onClick={() => setInfo(!info)}
+            onClick={() => { setInfo(!info); }}
           >
             <Icon name="details" />
           </button>
@@ -317,7 +315,7 @@ export function Viewer({
         className="viewer-stage"
         ref={stage}
         data-zoomed={zoom > 1}
-        onDoubleClick={() => changeZoom(zoom === 1 ? 2 : 1)}
+        onDoubleClick={() => { changeZoom(zoom === 1 ? 2 : 1); }}
         onPointerDown={(e) => {
           if (zoom <= 1 || e.button !== 0) return;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -342,8 +340,7 @@ export function Viewer({
             style={{
               transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})`,
             }}
-            onError={() =>
-              setError("Preview unavailable · the source may have expired")
+            onError={() => { setError("Preview unavailable · the source may have expired"); }
             }
           />
         ) : (
@@ -355,7 +352,7 @@ export function Viewer({
                 : "Loading full image…"}
             </p>
             {error && (
-              <button onClick={() => setAttempt((n) => n + 1)}>
+              <button onClick={() => { setAttempt((n) => n + 1); }}>
                 <Icon name="retry" />
                 Retry preview
               </button>
@@ -367,7 +364,7 @@ export function Viewer({
         className="viewer-previous"
         aria-label="Previous image"
         disabled={index === 0}
-        onClick={() => move(-1)}
+        onClick={() => { move(-1); }}
       >
         <Icon name="arrow" />
       </button>
@@ -375,7 +372,7 @@ export function Viewer({
         className="viewer-next"
         aria-label="Next image"
         disabled={index === total - 1}
-        onClick={() => move(1)}
+        onClick={() => { move(1); }}
       >
         <Icon name="arrow" />
       </button>
@@ -412,17 +409,17 @@ export function Viewer({
           <button
             aria-label="Zoom out"
             disabled={zoom <= 1}
-            onClick={() => changeZoom(zoom - 0.5)}
+            onClick={() => { changeZoom(zoom - 0.5); }}
           >
             <Icon name="zoomOut" />
           </button>
-          <button onClick={() => changeZoom(1)}>
+          <button onClick={() => { changeZoom(1); }}>
             {Math.round(zoom * 100)}%
           </button>
           <button
             aria-label="Zoom in"
             disabled={zoom >= 8}
-            onClick={() => changeZoom(zoom + 0.5)}
+            onClick={() => { changeZoom(zoom + 0.5); }}
           >
             <Icon name="zoomIn" />
           </button>
@@ -432,7 +429,7 @@ export function Viewer({
           <select
             aria-label="Viewer quality"
             value={quality}
-            onChange={(e) => setQuality(e.target.value)}
+            onChange={(e) => { setQuality(e.target.value); }}
           >
             <option value="best">Best available</option>
             <option value="displayed">Displayed version</option>
@@ -450,7 +447,7 @@ export function Viewer({
         <button
           className="primary"
           disabled={disabled || record.eligibility?.state !== "accepted"}
-          onClick={() => download(quality)}
+          onClick={() => { download(quality); }}
         >
           <Icon name="download" />
           Download
@@ -476,7 +473,7 @@ export function OutputSettings({
         Output format
         <select
           value={o.format}
-          onChange={(e) => change("format", e.target.value as Output["format"])}
+          onChange={(e) => { change("format", e.target.value as Output["format"]); }}
         >
           <option value="original">Original bytes</option>
           <option value="jpeg">JPEG</option>
@@ -488,7 +485,7 @@ export function OutputSettings({
         Source quality
         <select
           value={o.quality}
-          onChange={(e) => change("quality", e.target.value)}
+          onChange={(e) => { change("quality", e.target.value); }}
         >
           <option value="best">Best available</option>
           <option value="displayed">Displayed version</option>
@@ -503,11 +500,10 @@ export function OutputSettings({
               min="0"
               max="16000"
               value={o.width || ""}
-              onChange={(e) =>
-                change(
+              onChange={(e) => { change(
                   "width",
                   Math.max(0, Math.min(16000, Number(e.target.value) || 0)),
-                )
+                ); }
               }
             />
           </label>
@@ -518,11 +514,10 @@ export function OutputSettings({
               min="0"
               max="16000"
               value={o.height || ""}
-              onChange={(e) =>
-                change(
+              onChange={(e) => { change(
                   "height",
                   Math.max(0, Math.min(16000, Number(e.target.value) || 0)),
-                )
+                ); }
               }
             />
           </label>
@@ -534,8 +529,7 @@ export function OutputSettings({
                 min="10"
                 max="100"
                 value={o.qualityValue * 100}
-                onChange={(e) =>
-                  change("qualityValue", Number(e.target.value) / 100)
+                onChange={(e) => { change("qualityValue", Number(e.target.value) / 100); }
                 }
               />
             </label>
@@ -546,7 +540,7 @@ export function OutputSettings({
               <input
                 type="color"
                 value={o.background}
-                onChange={(e) => change("background", e.target.value)}
+                onChange={(e) => { change("background", e.target.value); }}
               />
             </label>
           )}
@@ -554,7 +548,7 @@ export function OutputSettings({
             <input
               type="checkbox"
               checked={o.upscale}
-              onChange={(e) => change("upscale", e.target.checked)}
+              onChange={(e) => { change("upscale", e.target.checked); }}
             />
             Allow upscaling
           </label>
@@ -562,7 +556,7 @@ export function OutputSettings({
             <input
               type="checkbox"
               checked={o.firstFrame}
-              onChange={(e) => change("firstFrame", e.target.checked)}
+              onChange={(e) => { change("firstFrame", e.target.checked); }}
             />
             Allow first-frame/static conversion for animated/vector files
           </label>
@@ -681,11 +675,10 @@ export function Jobs({
                   <div>
                     <button
                       disabled={!(pages[job.id] || 0)}
-                      onClick={() =>
-                        setPages((p) => ({
+                      onClick={() => { setPages((p) => ({
                           ...p,
                           [job.id]: Math.max(0, (p[job.id] || 0) - 1),
-                        }))
+                        })); }
                       }
                     >
                       Previous results
@@ -694,11 +687,10 @@ export function Jobs({
                       disabled={
                         ((pages[job.id] || 0) + 1) * 50 >= job.items.length
                       }
-                      onClick={() =>
-                        setPages((p) => ({
+                      onClick={() => { setPages((p) => ({
                           ...p,
                           [job.id]: (p[job.id] || 0) + 1,
-                        }))
+                        })); }
                       }
                     >
                       Next results

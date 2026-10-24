@@ -14,9 +14,9 @@ function bounded<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) => {
-      timer = setTimeout(() => reject(Error("Handshake timed out")), ms);
+      timer = setTimeout(() => { reject(Error("Handshake timed out")); }, ms);
     }),
-  ]).finally(() => clearTimeout(timer));
+  ]).finally(() => { clearTimeout(timer); });
 }
 export function activateReliably(tabId: number, commit: () => Promise<void>) {
   if (running.has(tabId)) return running.get(tabId)!;
@@ -177,6 +177,7 @@ export function activateReliably(tabId: number, commit: () => Promise<void>) {
             if (attempt === 0 && now && Date.now() < deadline) continue;
             throw Error(
               "The page changed during activation. Retry once navigation settles.",
+              { cause: error },
             );
           }
           throw error;
@@ -193,7 +194,7 @@ export function activateReliably(tabId: number, commit: () => Promise<void>) {
       await update({
         stage: "failed",
         detail: own
-          ? (error as Error).message
+          ? (error).message
           : "Activation failed or timed out. Check site access, refresh the website, then Retry.",
         category: status.category || "initialization",
       });
@@ -201,7 +202,7 @@ export function activateReliably(tabId: number, commit: () => Promise<void>) {
       await chrome.action
         .setBadgeBackgroundColor({ tabId, color: "#af3b48" })
         .catch(() => {});
-      throw Error(status.detail);
+      throw Error(status.detail, { cause: error });
     }
   })().finally(() => running.delete(tabId));
   running.set(tabId, task);
@@ -210,8 +211,9 @@ export function activateReliably(tabId: number, commit: () => Promise<void>) {
 export async function showTroubleshooting(tabId: number) {
   const url = chrome.runtime.getURL(`troubleshoot.html?tab=${tabId}`);
   const saved =
-    (await chrome.storage.session.get("troubleshootingTabs"))
-      .troubleshootingTabs || {};
+    ((await chrome.storage.session.get("troubleshootingTabs"))[
+      "troubleshootingTabs"
+    ] || {}) as Record<number, number>;
   if (saved[tabId]) {
     try {
       await chrome.tabs.update(saved[tabId], { active: true });
@@ -219,6 +221,8 @@ export async function showTroubleshooting(tabId: number) {
     } catch {}
   }
   const tab = await chrome.tabs.create({ url });
-  saved[tabId] = tab.id;
-  await chrome.storage.session.set({ troubleshootingTabs: saved });
+  if (typeof tab.id === "number") {
+    saved[tabId] = tab.id;
+    await chrome.storage.session.set({ troubleshootingTabs: saved });
+  }
 }

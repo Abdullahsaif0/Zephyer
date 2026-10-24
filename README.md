@@ -5,7 +5,7 @@ A private Manifest V3 Chrome extension for automatic image discovery, page selec
 ## Install in Chrome
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and select **`H:\Zephyer\dist`**.
+2. Click **Load unpacked** and select this project's **`dist`** folder (run `npm run build` first if it does not exist).
 3. Pin Zephyer using Chrome's Extensions menu. Refresh websites that were already open when you installed it.
 4. Click the pinned extension icon to activate the current tab and reveal the dock. Hover over images for controls. Use **Library** for the side panel or **Open Photos Gallery** for a clean full-tab gallery.
 

@@ -1,4 +1,4 @@
-import type { ImageRecord, Settings, Variant } from "./shared";
+import type { Eligibility, ImageRecord, Settings, Variant } from "./shared";
 
 export const imageFormats = [
   "jpeg",
@@ -11,13 +11,9 @@ export const imageFormats = [
   "ico",
   "tiff",
 ] as const;
-export type Eligibility = {
-  state: "accepted" | "excluded" | "pending";
-  reasons: string[];
-};
+export type { Eligibility };
 export const normalizedFormat = (f: string) =>
-  f
-    .split(";", 1)[0]
+  (f.split(";", 1)[0] ?? "")
     .trim()
     .toLowerCase()
     .replace(/^image\//, "")

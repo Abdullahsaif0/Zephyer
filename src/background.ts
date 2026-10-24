@@ -19,7 +19,7 @@ import {
   galleryNavigated,
   retainGallery,
 } from "./collections";
-import { getCollection, collectionRecords, all, patchCollection } from "./db";
+import { collectionRecords, patchCollection } from "./db";
 import { pagePower, mergeSiteRules } from "./power";
 import { validHostname, preferenceError } from "./preferences";
 import {
@@ -35,10 +35,13 @@ import {
   filename,
   candidates,
   type DownloadJob,
+  type Collection,
   type ImageRecord,
   type Output,
+  type RetrievalAttempt,
   type ScanSession,
   type Settings,
+  type Variant,
 } from "./shared";
 import {
   getJobs,
@@ -62,7 +65,6 @@ import {
   allowedVariants,
   validDiscoverySettings,
   normalizedFormat,
-  sniffImage,
 } from "./discovery";
 const manualCollection = new Set<number>();
 const scanHolds = new Set<number>();
@@ -117,7 +119,7 @@ async function commitSettings(next: Settings) {
       previous,
       tab.url || "",
       0,
-      activatedTabs.has(tab.id!),
+      activatedTabs.has(tab.id),
       onePass.has(tab.id) ||
         (manualCollection.has(tab.id) && scans.get(tab.id)?.state !== "paused"),
     );
@@ -147,9 +149,10 @@ async function commitSettings(next: Settings) {
       if (!power.effectiveEnabled) modes.set(tab.id, false);
       for (const [controller, owner] of verificationControllers)
         if (owner === tab.id) controller.abort();
-      for (let i = verificationQueue.length - 1; i >= 0; i--)
-        if (verificationQueue[i].tabId === tab.id)
-          verificationQueue.splice(i, 1);
+      for (let i = verificationQueue.length - 1; i >= 0; i--) {
+        const entry = verificationQueue[i];
+        if (entry?.tabId === tab.id) verificationQueue.splice(i, 1);
+      }
       for (const key of verificationSeen)
         if (key.startsWith(`${tab.id}:`)) verificationSeen.delete(key);
       const scan = scans.get(tab.id);
@@ -199,7 +202,7 @@ const init = () =>
   (initialized ??= chrome.storage.local
     .get(["settings", "scanRecovery"])
     .then(async (r) => {
-      settings = { ...defaults, ...r.settings };
+      settings = { ...defaults, ...r["settings"] };
       await initCollections();
       for (const tab of await chrome.tabs.query({}))
         if (tab.id && tab.url) sourceRoutes.set(tab.id, tab.url);
@@ -227,7 +230,7 @@ const init = () =>
         settings.askWhereToSave = defaults.askWhereToSave;
         settings.sequencePrefix = defaults.sequencePrefix;
       }
-      for (const [id, value] of Object.entries(r.scanRecovery || {})) {
+      for (const [id, value] of Object.entries(r["scanRecovery"] || {})) {
         const scan = value as ScanSession;
         if (["running", "paused"].includes(scan.state)) {
           const tab = await chrome.tabs.get(Number(id)).catch(() => undefined);
@@ -486,7 +489,7 @@ function notify(tabId: number) {
 async function offscreen() {
   const url = chrome.runtime.getURL("offscreen.html");
   const contexts = await chrome.runtime.getContexts({
-    contextTypes: ["OFFSCREEN_DOCUMENT" as chrome.runtime.ContextType],
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
     documentUrls: [url],
   });
   if (!contexts.length)
@@ -648,7 +651,7 @@ async function pageBytes(r: ImageRecord, url: string) {
 }
 async function freshMedia(
   record: ImageRecord,
-  trace: import("./shared").RetrievalAttempt[],
+  trace: RetrievalAttempt[],
 ) {
   if (!record.media?.contentId || !record.media.slideId || record.detached)
     return;
@@ -699,9 +702,9 @@ async function processCandidate(
   output: Output,
   allowedFormats?: string[],
   requestId?: string,
-  trace: import("./shared").RetrievalAttempt[] = [],
+  trace: RetrievalAttempt[] = [],
 ): Promise<any> {
-  const attempt: import("./shared").RetrievalAttempt = {
+  const attempt: RetrievalAttempt = {
     strategy: "extension",
     url,
     result: "Attempting readable bytes",
@@ -742,13 +745,14 @@ async function converted(
   record: ImageRecord,
   output: Output,
   allowedFormats?: string[],
-  trace: import("./shared").RetrievalAttempt[] = [],
+  trace: RetrievalAttempt[] = [],
   allowRefresh = true,
 ): Promise<any> {
   let last = "No downloadable candidates";
   const vs = candidates(record, output.quality);
   for (let index = 0; index < vs.length; index++) {
     const v = vs[index];
+    if (!v) break;
     try {
       const result = await processCandidate(
         record,
@@ -809,7 +813,7 @@ async function enrich(record: ImageRecord) {
   return record;
 }
 async function runItem(job: DownloadJob, itemId: string) {
-  const retrieval: import("./shared").RetrievalAttempt[] = [
+  const retrieval: RetrievalAttempt[] = [
     ...(job.items.find((i) => i.id === itemId)?.retrieval || []),
   ];
   let item = job.items.find((i) => i.id === itemId)!;
@@ -854,7 +858,9 @@ async function runItem(job: DownloadJob, itemId: string) {
         vs.length - 1,
       );
       for (; index < vs.length; index++) {
-        let candidate = vs[index];
+        const initial = vs[index];
+        if (!initial) break;
+        let candidate: Variant = initial;
         fmt = candidate.format;
         try {
           const probe = await probeImage(candidate.url);
@@ -913,11 +919,12 @@ async function runItem(job: DownloadJob, itemId: string) {
         )
           break;
       }
-      url = vs[index]?.url;
-      if (!url)
+      const finalUrl = vs[index]?.url;
+      if (!finalUrl)
         throw Error(
           "No eligible format for this candidate; enable its actual format in Preferences",
         );
+      url = finalUrl;
       actualUrl = url;
       fallback = index > 0;
     } else {
@@ -1047,7 +1054,7 @@ async function runZip(job: DownloadJob) {
       });
       if (!claimed) break;
       let preparedBlob: string | undefined;
-      const trace: import("./shared").RetrievalAttempt[] = [];
+      const trace: RetrievalAttempt[] = [];
       try {
         if (job.output.quality === "best" && item.attempts === 0)
           item.record = await enrich(item.record);
@@ -1337,8 +1344,8 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
     }
     chrome.sidePanel
       .open({ tabId: id })
-      .then(() => reply(true))
-      .catch((e) => reply({ error: String(e) }));
+      .then(() => { reply(true); })
+      .catch((e) => { reply({ error: String(e) }); });
     return true;
   }
   if (!m || typeof m.type !== "string") {
@@ -1349,7 +1356,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
     await recover();
     const ui = trusted(s);
     let tabId = ui ? m.tabId : s.tab?.id;
-    let targetCollection: import("./shared").Collection | undefined;
+    let targetCollection: Collection | undefined;
     if (String(m.type).startsWith("COLLECTION_")) {
       if (!ui) throw Error("Gallery commands require an extension page");
       targetCollection = await requireCollection(m.collectionId);
@@ -1486,9 +1493,10 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           if (!currentTab || !powerFor(currentTab).collecting) {
             for (const [controller, owner] of verificationControllers)
               if (owner === tabId) controller.abort();
-            for (let i = verificationQueue.length - 1; i >= 0; i--)
-              if (verificationQueue[i].tabId === tabId)
-                verificationQueue.splice(i, 1);
+            for (let i = verificationQueue.length - 1; i >= 0; i--) {
+              const entry = verificationQueue[i];
+              if (entry?.tabId === tabId) verificationQueue.splice(i, 1);
+            }
             for (const key of verificationSeen)
               if (key.startsWith(`${tabId}:`)) verificationSeen.delete(key);
           }
@@ -1583,6 +1591,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
               throw Error(
                 String(error) +
                   " · preview needs readable image bytes; try an original download or reopen the source",
+                { cause: error },
               );
             result = await processCandidate(
               fresh,
@@ -1681,7 +1690,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
         }
         return serialized("dock-layouts", async () => {
           const saved = await chrome.storage.local.get("dockLayouts");
-          const layouts = { ...(saved.dockLayouts || {}) };
+          const layouts = { ...(saved["dockLayouts"] || {}) };
           if (m.type === "DOCK_GET")
             return {
               layout: validLayout(layouts[hostname]) ? layouts[hostname] : null,
@@ -1712,7 +1721,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
                   )
                   .catch(() => {});
           } else {
-            delete layouts[hostname];
+            Reflect.deleteProperty(layouts, hostname);
             await chrome.storage.local.set({ dockLayouts: layouts });
             for (const tab of await chrome.tabs.query({})) {
               try {
@@ -1741,7 +1750,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           prefix: `${s.tab!.id}:${s.documentId || s.frameId}:`,
           settings,
         };
-      case "DISCOVER":
+      case "DISCOVER": {
         if (ui || !Array.isArray(m.records) || m.records.length > 60)
           throw Error("Invalid discovery");
         const discoveryTab = await chrome.tabs.get(tabId);
@@ -1750,7 +1759,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           /(^|\.)instagram\.com$/.test(
             new URL(discoveryTab.url || "https://invalid/").hostname,
           ) &&
-          /^\/stories\//.test(new URL(discoveryTab.url!).pathname)
+          new URL(discoveryTab.url!).pathname.startsWith("/stories/")
         )
           return;
         const discoveryPower = powerFor(discoveryTab);
@@ -1812,6 +1821,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
         });
         notify(tabId);
         return acceptedDiscovery;
+      }
       case "RECORDS_BATCH":
         if (
           !ui ||
@@ -1829,7 +1839,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
             .map((r) => decorate(r, settings)),
         };
       case "LIBRARY_META":
-      case "SNAPSHOT":
+      case "SNAPSHOT": {
         if (!ui || !Number.isInteger(tabId)) throw Error("Invalid tab");
         let tab;
         try {
@@ -1866,6 +1876,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
               ? "Chrome restricts this page. Open a normal HTTP/HTTPS website."
               : undefined,
         };
+      }
       case "COLLECTION_INCLUDE":
       case "INCLUDE": {
         if (!ui || typeof m.id !== "string")
@@ -1933,7 +1944,6 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
             throw Error("Invalid scan command");
           if (["start", "resume"].includes(m.command)) {
             const tab = await chrome.tabs.get(tabId);
-            const hostname = tab.url ? new URL(tab.url).hostname : "";
             if (!powerFor(tab).effectiveEnabled)
               throw Error(
                 "Enable image detection for this website before scanning",
@@ -2300,9 +2310,9 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
             );
           const sequenceState = await chrome.storage.local.get("sequenceNext");
           const firstSequence =
-            Number.isSafeInteger(sequenceState.sequenceNext) &&
-            sequenceState.sequenceNext > 0
-              ? sequenceState.sequenceNext
+            Number.isSafeInteger(sequenceState["sequenceNext"]) &&
+            sequenceState["sequenceNext"] > 0
+              ? sequenceState["sequenceNext"]
               : 1;
           if (!Number.isSafeInteger(firstSequence + rs.length))
             throw Error("Sequence number limit reached");
@@ -2310,16 +2320,18 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           await chrome.storage.local.set({
             sequenceNext: firstSequence + rs.length,
           });
+          const first = rs[0];
+          if (!first) throw Error("No eligible records in selection");
           const domain = (() => {
             try {
-              return new URL(rs[0].pageUrl).hostname;
+              return new URL(first.pageUrl).hostname;
             } catch {
               return "images";
             }
           })();
           const job: DownloadJob = {
             clientRequestId: m.requestId,
-            collectionId: targetCollection?.id || rs[0].collectionId,
+            collectionId: targetCollection?.id || first.collectionId,
             allowedFormats: [...jobSettings.allowedFormats],
             id: crypto.randomUUID(),
             tabId: targetCollection?.tabId ?? tabId,
@@ -2424,7 +2436,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
     }
   })()
     .then(reply)
-    .catch((e) => reply({ error: e instanceof Error ? e.message : String(e) }));
+    .catch((e) => { reply({ error: e instanceof Error ? e.message : String(e) }); });
   return true;
 });
 chrome.downloads.onChanged.addListener((delta) => {
@@ -2490,8 +2502,10 @@ chrome.tabs.onRemoved.addListener((id) => {
   onePass.delete(id);
   for (const [controller, owner] of verificationControllers)
     if (owner === id) controller.abort();
-  for (let i = verificationQueue.length - 1; i >= 0; i--)
-    if (verificationQueue[i].tabId === id) verificationQueue.splice(i, 1);
+  for (let i = verificationQueue.length - 1; i >= 0; i--) {
+    const entry = verificationQueue[i];
+    if (entry?.tabId === id) verificationQueue.splice(i, 1);
+  }
   void init().then(() =>
     serialized(`records:${id}`, async () => {
       await closeTab(id);
@@ -2524,7 +2538,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 chrome.contextMenus.onClicked.addListener((i, t) => {
   if (i.menuItemId === "zephyer-library" && t?.id)
-    chrome.sidePanel.open({ tabId: t.id });
+    void chrome.sidePanel.open({ tabId: t.id });
 });
 chrome.alarms.onAlarm.addListener(() => {
   pump();

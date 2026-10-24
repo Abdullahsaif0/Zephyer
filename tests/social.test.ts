@@ -16,8 +16,7 @@ describe("social identity", () => {
       "https://www.instagram.com/stories/person/123/",
       "instagram:stories:person",
     ],
-  ])("scopes %s", (url, expected) =>
-    expect(socialDocumentKey(url)).toBe(expected),
+  ])("scopes %s", (url, expected) => { expect(socialDocumentKey(url)).toBe(expected); },
   );
   it("rejects lookalike hosts and malformed media", () => {
     expect(
@@ -77,7 +76,7 @@ describe("bounded retrieval", () => {
           new Promise((_resolve, reject) =>
             options.signal.addEventListener(
               "abort",
-              () => reject(new DOMException("Timed out", "AbortError")),
+              () => { reject(new DOMException("Timed out", "AbortError")); },
               { once: true },
             ),
           ),

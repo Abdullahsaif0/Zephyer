@@ -114,9 +114,12 @@ function App() {
   }, []);
   useEffect(() => {
     if (!list.current) return;
-    const o = new ResizeObserver((es) => setViewport(es[0].contentRect.height));
+    const o = new ResizeObserver((es) => {
+      const entry = es[0];
+      if (entry) setViewport(entry.contentRect.height);
+    });
     o.observe(list.current);
-    return () => o.disconnect();
+    return () => { o.disconnect(); };
   }, [view, data?.records.length ? true : false]);
   async function act(
     m:
@@ -177,8 +180,7 @@ function App() {
           r.selected && (r.eligibility?.state || "accepted") === "accepted",
       ) || [],
     visibleSelected = filtered.filter((r) => r.selected);
-  const changeOutput = (k: keyof Output, v: any) =>
-    setOutput((o) => ({ ...o, [k]: v }));
+  const changeOutput = (k: keyof Output, v: any) => { setOutput((o) => ({ ...o, [k]: v })); };
   async function download(ids: string[], asZip = output.zip) {
     if (submitting.current || !ids.length) return;
     submitting.current = true;
@@ -298,8 +300,7 @@ function App() {
               !data.records.some((r) => r.eligibility?.state === "accepted")
             }
             onClick={() =>
-              void rpc({ type: "OPEN_GALLERY", tabId }).catch((e) =>
-                setError(String(e)),
+              void rpc({ type: "OPEN_GALLERY", tabId }).catch((e) => { setError(String(e)); },
               )
             }
           >
@@ -310,7 +311,7 @@ function App() {
       <nav>
         <button
           className={view === "library" ? "active" : ""}
-          onClick={() => setView("library")}
+          onClick={() => { setView("library"); }}
         >
           Library{" "}
           <b>
@@ -321,7 +322,7 @@ function App() {
         </button>
         <button
           className={view === "queue" ? "active" : ""}
-          onClick={() => setView("queue")}
+          onClick={() => { setView("queue"); }}
         >
           Downloads <b>{data?.jobs.length || 0}</b>
         </button>
@@ -460,7 +461,7 @@ function App() {
               <select
                 aria-label="Exclusion reason"
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => { setReason(e.target.value); }}
               >
                 <option value="">All reasons</option>
                 {[
@@ -526,7 +527,7 @@ function App() {
               </label>
               <label>
                 Sort
-                <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                <select value={sort} onChange={(e) => { setSort(e.target.value); }}>
                   <option value="discovered">Discovered</option>
                   <option value="largest">Largest first</option>
                   <option value="name">Name</option>
@@ -569,7 +570,7 @@ function App() {
             aria-label="Collected images"
             tabIndex={0}
             ref={list}
-            onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
+            onScroll={(e) => { setScroll(e.currentTarget.scrollTop); }}
           >
             {filtered.length ? (
               <div style={{ height: rows * rowHeight, position: "relative" }}>
@@ -667,12 +668,12 @@ function App() {
                 Quality
                 <select
                   value={output.quality}
-                  onChange={(e) => changeOutput("quality", e.target.value)}
+                  onChange={(e) => { changeOutput("quality", e.target.value); }}
                 >
                   <option value="best">Best available</option>
                   <option value="displayed">Displayed version</option>
                   {selected.length === 1 &&
-                    selected[0].variants.map((v) => (
+                    selected[0]?.variants.map((v) => (
                       <option key={v.url} value={v.url}>
                         {v.width || "?"} × {v.height || "?"} · {v.method}
                       </option>
@@ -684,7 +685,7 @@ function App() {
                 <select
                   aria-label="File format"
                   value={output.format}
-                  onChange={(e) => changeOutput("format", e.target.value)}
+                  onChange={(e) => { changeOutput("format", e.target.value); }}
                 >
                   {["original", "jpeg", "png", "webp"].map((f) => (
                     <option key={f} value={f}>
@@ -697,8 +698,7 @@ function App() {
                 Delivery
                 <select
                   value={String(output.zip)}
-                  onChange={(e) =>
-                    changeOutput("zip", e.target.value === "true")
+                  onChange={(e) => { changeOutput("zip", e.target.value === "true"); }
                   }
                 >
                   <option value="false">Individual files</option>
@@ -716,8 +716,7 @@ function App() {
                       min="0"
                       max="16384"
                       value={output.width}
-                      onChange={(e) =>
-                        changeOutput("width", Number(e.target.value))
+                      onChange={(e) => { changeOutput("width", Number(e.target.value)); }
                       }
                     />
                   </label>
@@ -728,8 +727,7 @@ function App() {
                       min="0"
                       max="16384"
                       value={output.height}
-                      onChange={(e) =>
-                        changeOutput("height", Number(e.target.value))
+                      onChange={(e) => { changeOutput("height", Number(e.target.value)); }
                       }
                     />
                   </label>
@@ -739,8 +737,7 @@ function App() {
                       <input
                         type="color"
                         value={output.background}
-                        onChange={(e) =>
-                          changeOutput("background", e.target.value)
+                        onChange={(e) => { changeOutput("background", e.target.value); }
                         }
                       />
                     </label>
@@ -757,11 +754,10 @@ function App() {
                       min="10"
                       max="100"
                       value={output.qualityValue * 100}
-                      onChange={(e) =>
-                        changeOutput(
+                      onChange={(e) => { changeOutput(
                           "qualityValue",
                           Number(e.target.value) / 100,
-                        )
+                        ); }
                       }
                     />
                   </label>
@@ -770,7 +766,7 @@ function App() {
                   <input
                     type="checkbox"
                     checked={output.upscale}
-                    onChange={(e) => changeOutput("upscale", e.target.checked)}
+                    onChange={(e) => { changeOutput("upscale", e.target.checked); }}
                   />{" "}
                   Allow upscaling
                 </label>
@@ -778,8 +774,7 @@ function App() {
                   <input
                     type="checkbox"
                     checked={output.firstFrame}
-                    onChange={(e) =>
-                      changeOutput("firstFrame", e.target.checked)
+                    onChange={(e) => { changeOutput("firstFrame", e.target.checked); }
                     }
                   />{" "}
                   Allow first-frame/static conversion of animation/vector
@@ -961,11 +956,10 @@ function App() {
                     <div className="button-row queue-pages">
                       <button
                         disabled={!jobPages[j.id]}
-                        onClick={() =>
-                          setJobPages((p) => ({
+                        onClick={() => { setJobPages((p) => ({
                             ...p,
                             [j.id]: Math.max(0, (p[j.id] || 0) - 1),
-                          }))
+                          })); }
                         }
                       >
                         Previous files
@@ -978,11 +972,10 @@ function App() {
                         disabled={
                           ((jobPages[j.id] || 0) + 1) * 50 >= j.items.length
                         }
-                        onClick={() =>
-                          setJobPages((p) => ({
+                        onClick={() => { setJobPages((p) => ({
                             ...p,
                             [j.id]: (p[j.id] || 0) + 1,
-                          }))
+                          })); }
                         }
                       >
                         Next files
@@ -1032,14 +1025,14 @@ function ImageCard({
         className="preview"
         aria-label={`${review ? "Preview" : "Select"} ${r.name || "image"}`}
         aria-pressed={review ? undefined : r.selected}
-        onClick={review ? () => setPreview(true) : onSelect}
+        onClick={review ? () => { setPreview(true); } : onSelect}
       >
         {previewUrl && !broken && (!review || preview) ? (
           <img
             src={previewUrl}
             loading="lazy"
             referrerPolicy="no-referrer"
-            onError={() => setBroken(true)}
+            onError={() => { setBroken(true); }}
           />
         ) : (
           <span className="unavailable">

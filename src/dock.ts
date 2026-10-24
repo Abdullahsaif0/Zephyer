@@ -114,8 +114,8 @@ export class Dock {
     root.className = "z-dock";
     root.setAttribute("role", "toolbar");
     root.setAttribute("aria-label", "Zephyer image controls");
-    root.dataset.state = "compact";
-    root.dataset.orientation = "horizontal";
+    root.dataset["state"] = "compact";
+    root.dataset["orientation"] = "horizontal";
     this.grip = this.make("grip", "Move dock", "grip", () => {});
     this.grip.classList.add("z-grip");
     this.grip.setAttribute(
@@ -149,15 +149,13 @@ export class Dock {
     );
     this.controls.append(
       powerButton,
-      this.make("expand", "Expand controls", "expand", () =>
-        this.setState(
+      this.make("expand", "Expand controls", "expand", () => { this.setState(
           this.layout.state === "expanded" ? "compact" : "expanded",
-        ),
+        ); },
       ),
-      this.make("minimize", "Minimize dock", "minimize", () =>
-        this.setState("minimized"),
+      this.make("minimize", "Minimize dock", "minimize", () => { this.setState("minimized"); },
       ),
-      this.make("more", "More options", "more", () => this.toggleMenu()),
+      this.make("more", "More options", "more", () => { this.toggleMenu(); }),
     );
     this.header.append(this.grip, mark, this.count, this.controls);
     for (const [key, label, icon, fn] of [
@@ -171,8 +169,7 @@ export class Dock {
     ] as [string, string, IconName, () => void][]) {
       this.actions.append(this.make(key, label, icon, fn));
     }
-    const restore = this.make("restore", "Restore dock", "expand", () =>
-      this.setState(this.layout.restoreState),
+    const restore = this.make("restore", "Restore dock", "expand", () => { this.setState(this.layout.restoreState); },
     );
     restore.className += " z-restore";
     this.offCopy.className = "z-off-copy";
@@ -280,9 +277,9 @@ export class Dock {
     const stop = this.make("hud-stop", "Stop scan", "stop", callbacks.stop);
     this.hud.append(track, text, pause, stop);
     root.after(this.hud);
-    this.lifecycle.interval(() => this.updateHud(), 1000);
+    this.lifecycle.interval(() => { this.updateHud(); }, 1000);
     this.lifecycle.listen(document, "visibilitychange", () => {
-      this.hud.dataset.hiddenPage = String(document.hidden);
+      this.hud.dataset["hiddenPage"] = String(document.hidden);
     });
     this.grip.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || !e.isPrimary) return;
@@ -309,14 +306,12 @@ export class Dock {
       )
         return;
       d.moved = true;
-      root.dataset.dragging = "true";
+      root.dataset["dragging"] = "true";
       this.move(d.x + e.clientX - d.startX, d.y + e.clientY - d.startY);
     });
-    this.grip.addEventListener("pointerup", (e) =>
-      this.finish(e.pointerId, false),
+    this.grip.addEventListener("pointerup", (e) => { this.finish(e.pointerId, false); },
     );
-    this.grip.addEventListener("pointercancel", (e) =>
-      this.finish(e.pointerId, true),
+    this.grip.addEventListener("pointercancel", (e) => { this.finish(e.pointerId, true); },
     );
     this.grip.addEventListener("lostpointercapture", (e) => {
       if (this.drag) this.finish(e.pointerId, true);
@@ -334,10 +329,11 @@ export class Dock {
         ArrowUp: [0, -1],
         ArrowDown: [0, 1],
       };
-      if (delta[e.key]) {
+      const step = delta[e.key];
+      if (step) {
         e.preventDefault();
         const n = e.shiftKey ? 40 : 10;
-        this.move(this.x + delta[e.key][0] * n, this.y + delta[e.key][1] * n);
+        this.move(this.x + step[0] * n, this.y + step[1] * n);
         this.remember();
       }
     });
@@ -357,19 +353,18 @@ export class Dock {
       )
         this.closeMenu();
     });
-    const observer = new ResizeObserver(() => this.place());
+    const observer = new ResizeObserver(() => { this.place(); });
     observer.observe(root);
-    this.lifecycle.listen(window, "resize", () => this.place());
+    this.lifecycle.listen(window, "resize", () => { this.place(); });
     if (window.visualViewport)
-      this.lifecycle.listen(window.visualViewport, "resize", () =>
-        this.place(),
+      this.lifecycle.listen(window.visualViewport, "resize", () => { this.place(); },
       );
   }
   private make(key: string, label: string, icon: IconName, fn: () => void) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "z-action";
-    b.dataset.action = key;
+    b.dataset["action"] = key;
     b.title = label;
     b.setAttribute("aria-label", label);
     b.append(iconElement(icon));
@@ -387,9 +382,9 @@ export class Dock {
   }
   private changeIcon(key: string, name: IconName, label: string) {
     const b = this.buttons.get(key)!;
-    if (b.dataset.icon !== name) {
+    if (b.dataset["icon"] !== name) {
       b.querySelector("svg")!.replaceWith(iconElement(name));
-      b.dataset.icon = name;
+      b.dataset["icon"] = name;
     }
     b.title = label;
     b.setAttribute("aria-label", label);
@@ -452,7 +447,7 @@ export class Dock {
     const d = this.drag;
     if (!d || d.id !== id) return;
     this.drag = undefined;
-    delete this.root.dataset.dragging;
+    delete this.root.dataset["dragging"];
     if (this.grip.hasPointerCapture(id)) this.grip.releasePointerCapture(id);
     if (cancel) {
       this.layout = d.old;
@@ -466,7 +461,7 @@ export class Dock {
       this.layout.restoreState = this.layout.state;
     this.layout.state = state;
     if (state !== "minimized") this.layout.restoreState = state;
-    this.root.dataset.state = state;
+    this.root.dataset["state"] = state;
     this.closeMenu();
     this.changeIcon(
       "expand",
@@ -479,14 +474,14 @@ export class Dock {
     else this.buttons.get("expand")!.focus();
   }
   setLayout(layout: DockLayout | null) {
-    this.root.dataset.restoring = "true";
+    this.root.dataset["restoring"] = "true";
     this.root.hidden = false;
     requestAnimationFrame(() =>
-      requestAnimationFrame(() => delete this.root.dataset.restoring),
+      requestAnimationFrame(() => delete this.root.dataset["restoring"]),
     );
     this.initialized = true;
     this.layout = validLayout(layout) ? { ...layout } : this.defaultLayout();
-    this.root.dataset.state = this.layout.state;
+    this.root.dataset["state"] = this.layout.state;
     this.changeIcon(
       "expand",
       this.layout.state === "expanded" ? "compact" : "expand",
@@ -526,8 +521,8 @@ export class Dock {
         ? (this.root.getRootNode() as ShadowRoot).activeElement
         : null;
     this.model = model;
-    this.root.dataset.power = model.power.effectiveEnabled ? "on" : "off";
-    this.root.dataset.powerReason = model.power.reason;
+    this.root.dataset["power"] = model.power.effectiveEnabled ? "on" : "off";
+    this.root.dataset["powerReason"] = model.power.reason;
     this.root.setAttribute("aria-busy", String(model.powerBusy));
     this.offCopy.textContent = model.power.globalEnabled
       ? "Zephyer off"
@@ -580,7 +575,7 @@ export class Dock {
     const orientation = model.settings.dockOrientation;
     if (this.orientation !== orientation) {
       this.orientation = orientation;
-      this.root.dataset.orientation = orientation;
+      this.root.dataset["orientation"] = orientation;
       this.closeMenu();
       this.place();
     }
@@ -590,7 +585,7 @@ export class Dock {
         model.scan.state === "running" &&
         !matchMedia("(prefers-reduced-motion: reduce)").matches
       ) {
-        this.foundCount.getAnimations().forEach((a) => a.cancel());
+        this.foundCount.getAnimations().forEach((a) => { a.cancel(); });
         this.foundCount.animate(
           [
             { opacity: 0.55, translate: "0 2px" },
@@ -608,9 +603,9 @@ export class Dock {
     );
     this.selectedCount.title = `${model.selected} selected`;
     this.selectedCount.setAttribute("aria-label", `${model.selected} selected`);
-    this.selectedCount.dataset.empty = String(model.selected === 0);
+    this.selectedCount.dataset["empty"] = String(model.selected === 0);
     this.count.title = `${model.count} images found · ${model.selected} selected`;
-    this.root.dataset.scanning = String(model.scan.state === "running");
+    this.root.dataset["scanning"] = String(model.scan.state === "running");
     this.updateHud();
     if (this.status.textContent !== model.scan.reason)
       this.status.textContent = model.scan.reason;
@@ -706,7 +701,7 @@ export class Dock {
       !m.power.effectiveEnabled ||
       this.layout.state === "minimized" ||
       (!working && (!this.finishedAt || Date.now() - this.finishedAt > 4000));
-    this.hud.dataset.phase =
+    this.hud.dataset["phase"] =
       s.state === "running" ? s.phase || "scanning" : s.state;
     this.hudTitle.textContent =
       s.state === "paused"

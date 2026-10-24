@@ -8,7 +8,7 @@ import {
   patchCollection,
   deleteRecords,
 } from "./db";
-import type { Collection } from "./shared";
+import type { Collection, ImageRecord } from "./shared";
 export const activatedTabs = new Set<number>();
 export const liveCollections = new Map<number, string>();
 const galleryTabs = new Map<number, string>();
@@ -33,12 +33,12 @@ export async function initCollections() {
     "collectionEpoch",
     "galleryTabs",
   ]);
-  epoch = saved.collectionEpoch || crypto.randomUUID();
+  epoch = saved["collectionEpoch"] || crypto.randomUUID();
   const tabs = await chrome.tabs.query({});
   const ids = new Set(tabs.map((t) => t.id));
-  for (const id of saved.activation || [])
+  for (const id of saved["activation"] || [])
     if (ids.has(id)) activatedTabs.add(id);
-  for (const [id, value] of Object.entries(saved.galleryTabs || {}))
+  for (const [id, value] of Object.entries(saved["galleryTabs"] || {}))
     if (ids.has(Number(id))) galleryTabs.set(Number(id), String(value));
   for (const c of await all<Collection>("collections")) {
     if (
@@ -78,7 +78,7 @@ export async function initCollections() {
     }
   }
   // Backfill still-live legacy documents without activating the tab or fetching images.
-  const legacy = (await all<import("./shared").ImageRecord>("records")).filter(
+  const legacy = (await all<ImageRecord>("records")).filter(
     (r) => !r.collectionId,
   );
   for (const id of new Set(legacy.map((r) => r.tabId))) {

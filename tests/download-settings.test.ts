@@ -31,10 +31,9 @@ describe("download destinations and names", () => {
     ])
       expect(() => normalizeDownloadFolder(path), path).toThrow();
   });
-  it("retains Unicode folder names without injecting invalid separators", () =>
-    expect(normalizeDownloadFolder("تصاویر/Design work")).toBe(
+  it("retains Unicode folder names without injecting invalid separators", () => { expect(normalizeDownloadFolder("تصاویر/Design work")).toBe(
       "تصاویر/Design work",
-    ));
+    ); });
   it("uses explicit persistent sequence numbers and actual output extensions", () => {
     expect(sequentialFilename(r, 42, "jpeg")).toBe("000042.jpg");
     expect(sequentialFilename(r, 1000001, "webp", "photo")).toBe(

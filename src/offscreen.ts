@@ -1,4 +1,4 @@
-import { boundedBlob, archiveFits, resized, type Output } from "./shared";
+import { archiveFits, resized, type Output } from "./shared";
 import { zip, type Zippable } from "fflate";
 import { normalizedFormat, sniffImage } from "./discovery";
 import { fetchImageBytes } from "./retrieval";
@@ -34,7 +34,7 @@ async function decode(blob: Blob): Promise<{
       source: bitmap,
       width: bitmap.width,
       height: bitmap.height,
-      close: () => bitmap.close(),
+      close: () => { bitmap.close(); },
     };
   } catch (error) {
     if (!blob.type.startsWith("image/svg+xml")) throw error;
@@ -47,7 +47,7 @@ async function decode(blob: Blob): Promise<{
       await Promise.race([
         image.decode(),
         new Promise((_, reject) => {
-          timer = setTimeout(() => reject(Error("SVG decode timeout")), 10000);
+          timer = setTimeout(() => { reject(Error("SVG decode timeout")); }, 10000);
         }),
       ]);
       return {
@@ -78,7 +78,9 @@ async function image(
     new Uint8Array(await b.slice(0, 512).arrayBuffer()),
   );
   const inputFormat =
-    detected !== "unknown" ? detected : normalizedFormat(b.type.split(";")[0]);
+    detected !== "unknown"
+      ? detected
+      : normalizedFormat(b.type.split(";")[0] ?? "");
   if (allowedFormats && !allowedFormats.includes(inputFormat))
     throw Error(
       "No eligible format: actual image format is disabled in this job",
@@ -89,8 +91,10 @@ async function image(
     !["application/octet-stream", "binary/octet-stream"].includes(b.type)
   )
     throw Error(`Not an image: ${b.type}`);
-  let format =
-    detected !== "unknown" ? detected : normalizedFormat(b.type.split(";")[0]);
+  const format =
+    detected !== "unknown"
+      ? detected
+      : normalizedFormat(b.type.split(";")[0] ?? "");
   let width = 0,
     height = 0;
   if (o.format === "original") {
@@ -112,7 +116,7 @@ async function image(
   const text = new TextDecoder("latin1").decode(head);
   const animated =
     format === "gif" ||
-    /acTL/.test(text) ||
+    text.includes('acTL') ||
     /ANIM|ANMF/.test(text) ||
     format === "avif" ||
     format === "svg+xml" ||
@@ -139,13 +143,16 @@ async function image(
   }
   ctx.drawImage(bitmap.source, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  const result = await new Promise<Blob>((resolve, reject) =>
+  const result = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(Error("Conversion failed"))),
+      (b) => {
+        if (b) resolve(b);
+        else reject(Error("Conversion failed"));
+      },
       `image/${o.format}`,
       o.format === "png" ? undefined : o.qualityValue,
-    ),
-  );
+    );
+  });
   if (result.type !== `image/${o.format}`)
     throw Error("Requested image encoder unavailable");
   return {
@@ -241,9 +248,10 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
         archives.delete(m.key);
         const result = await new Promise<Uint8Array<ArrayBuffer>>(
           (resolve, reject) =>
-            zip(a.files, { level: 0 }, (err, data) =>
-              err ? reject(err) : resolve(new Uint8Array(data)),
-            ),
+            zip(a.files, { level: 0 }, (err, data) => {
+              if (err) reject(err);
+              else resolve(new Uint8Array(data));
+            }),
         );
         return {
           blobUrl: objectUrl(new Blob([result], { type: "application/zip" })),
@@ -269,7 +277,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
       }
       reply(result);
     })
-    .catch((e) => reply({ error: String(e) }))
+    .catch((e) => { reply({ error: String(e) }); })
     .finally(() => activeOperations--);
   return true;
 });

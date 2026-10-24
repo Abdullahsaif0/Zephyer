@@ -102,7 +102,7 @@ export async function probeImage(
       ? `Verified ${format}`
       : "Response was not a recognized image";
   } catch (error) {
-    if (/host backoff/.test(String(error))) attempt.status = 429;
+    if (String(error).includes('host backoff')) attempt.status = 429;
     attempt.result = signal?.aborted
       ? "Verification cancelled"
       : attempt.status

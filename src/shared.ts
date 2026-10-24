@@ -1,6 +1,19 @@
-import type { ThemeId } from "./appearance";
-export type ScanTarget = "feed" | "carousel" | "stories";
-export type MediaContext = {
+// Theme ids live here so the settings contract does not depend on the
+// presentation layer; appearance.ts owns the palettes keyed by these ids.
+export const themeIdList = [
+  "graphite",
+  "porcelain",
+  "midnight",
+  "forest",
+  "dusk",
+  "sand",
+] as const;
+export type ThemeId = (typeof themeIdList)[number];
+export type Eligibility = {
+  state: "accepted" | "excluded" | "pending";
+  reasons: string[];
+};
+export type ScanTarget = "feed" | "carousel" | "stories";export type MediaContext = {
   platform: "instagram" | "facebook" | "x" | "pinterest";
   contentId: string;
   slideId: string;
@@ -68,7 +81,7 @@ export type ImageRecord = {
   collectionRevision?: number;
   discoveredOrder?: number;
   detached?: boolean;
-  eligibility?: import("./discovery").Eligibility;
+  eligibility?: Eligibility;
   userIncluded?: boolean;
   signals?: {
     interfaceAsset: boolean;
@@ -139,7 +152,9 @@ export const defaults: Settings = {
   dockOrientation: "horizontal",
 };
 export type Output = {
-  quality: "best" | "displayed" | string;
+  // "best" and "displayed" are conventional values; a job may also pin an
+  // explicit variant URL, so the type is a plain string.
+  quality: string;
   format: "original" | "jpeg" | "png" | "webp";
   width: number;
   height: number;
@@ -379,12 +394,11 @@ export function absolute(raw: string, base: string) {
 }
 export function formatOf(url: string) {
   if (url.startsWith("data:"))
-    return url.match(/^data:image\/([^;,]+)/)?.[1] || "unknown";
+    return (/^data:image\/([^;,]+)/.exec(url))?.[1] || "unknown";
   try {
     return (
-      new URL(url).pathname
-        .match(/\.(avif|webp|png|jpe?g|gif|svg|bmp|ico|tiff?)$/i)?.[1]
-        .toLowerCase()
+      (/\.(avif|webp|png|jpe?g|gif|svg|bmp|ico|tiff?)$/i.exec(new URL(url).pathname))?.[1]
+        ?.toLowerCase()
         .replace("jpg", "jpeg") || "unknown"
     );
   } catch {
@@ -431,7 +445,7 @@ export function mergeVariants(a: Variant[], b: Variant[]) {
   return [...m.values()].slice(0, 80);
 }
 export function candidates(r: ImageRecord, q: string) {
-  let vs = [...r.variants];
+  const vs = [...r.variants];
   const ratio = r.width && r.height ? r.height / r.width : 1;
   const score = (v: Variant) => v.width * v.height || v.width * v.width * ratio;
   vs.sort((a, b) => score(b) - score(a));
@@ -446,6 +460,8 @@ export function candidates(r: ImageRecord, q: string) {
 export function sanitize(s: string) {
   return (
     s
+      // Control characters are deliberately stripped from filenames.
+      // eslint-disable-next-line no-control-regex
       .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
       .replace(/[. ]+$/, "")
       .replace(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i, "_$1$2")

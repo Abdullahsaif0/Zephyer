@@ -68,7 +68,7 @@ export function parseSrcset(raw: string, base: string): Variant[] {
   while (offset < raw.length) {
     while (/[\s,]/.test(raw[offset] || "") && offset < raw.length) offset++;
     const start = offset;
-    while (offset < raw.length && !/\s/.test(raw[offset])) offset++;
+    while (offset < raw.length && !/\s/.test(raw[offset] || "")) offset++;
     let url = raw.slice(start, offset);
     if (!url) break;
     let descriptor = "";
@@ -79,8 +79,8 @@ export function parseSrcset(raw: string, base: string): Variant[] {
       descriptor = raw.slice(startDescriptor, offset).trim();
       if (raw[offset] === ",") offset++;
     }
-    const width = descriptor.match(/^([1-9]\d*)w$/);
-    const density = descriptor.match(/^(\d+(?:\.\d+)?|\.\d+)x$/);
+    const width = /^([1-9]\d*)w$/.exec(descriptor);
+    const density = /^(\d+(?:\.\d+)?|\.\d+)x$/.exec(descriptor);
     if (descriptor && !width && !(density && Number(density[1]) > 0)) continue;
     const u = absolute(url, base);
     if (u) result.push(variant(u, "srcset", width ? Number(width[1]) : 0));

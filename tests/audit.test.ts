@@ -79,7 +79,7 @@ describe("audit regressions", () => {
           return r;
         },
       }),
-      abort: () => queueMicrotask(() => transaction.onabort?.()),
+      abort: () => { queueMicrotask(() => transaction.onabort?.()); },
     };
     vi.stubGlobal("indexedDB", {
       open: () => {

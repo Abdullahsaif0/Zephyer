@@ -40,10 +40,9 @@ describe("discovery policy", () => {
       false,
     );
   });
-  it("retains content and does not reject a logo filename alone", () =>
-    expect(
+  it("retains content and does not reject a logo filename alone", () => { expect(
       eligibility(record({ name: "A logo design study" }), defaults).state,
-    ).toBe("accepted"));
+    ).toBe("accepted"); });
   it("excludes formats until opted in", () => {
     const r = record({
       variants: [variant("https://x.test/photo.webp", "src", 640, 480)],
@@ -75,8 +74,7 @@ describe("discovery policy", () => {
       ).state,
     ).toBe("accepted");
   });
-  it("keeps a small thumbnail with a large original", () =>
-    expect(
+  it("keeps a small thumbnail with a large original", () => { expect(
       eligibility(
         record({
           width: 24,
@@ -88,9 +86,8 @@ describe("discovery policy", () => {
         }),
         defaults,
       ).state,
-    ).toBe("accepted"));
-  it("rejects tracking strips independently of small-asset setting", () =>
-    expect(
+    ).toBe("accepted"); });
+  it("rejects tracking strips independently of small-asset setting", () => { expect(
       eligibility(
         record({
           width: 1,
@@ -99,9 +96,8 @@ describe("discovery policy", () => {
         }),
         { ...defaults, hideSmall: false },
       ).reasons,
-    ).toContain("Tracking pixel / spacer"));
-  it("retains unknown dimensions", () =>
-    expect(
+    ).toContain("Tracking pixel / spacer"); });
+  it("retains unknown dimensions", () => { expect(
       eligibility(
         record({
           width: 0,
@@ -110,16 +106,14 @@ describe("discovery policy", () => {
         }),
         defaults,
       ).state,
-    ).toBe("accepted"));
-  it("requires review for unresolved formats", () =>
-    expect(
+    ).toBe("accepted"); });
+  it("requires review for unresolved formats", () => { expect(
       eligibility(
         record({ variants: [variant("https://x.test/image?sig=abc", "src")] }),
         defaults,
       ).state,
-    ).toBe("pending"));
-  it("requires opt-in even after include override", () =>
-    expect(
+    ).toBe("pending"); });
+  it("requires opt-in even after include override", () => { expect(
       eligibility(
         record({
           userIncluded: true,
@@ -127,7 +121,7 @@ describe("discovery policy", () => {
         }),
         defaults,
       ).state,
-    ).toBe("excluded"));
+    ).toBe("excluded"); });
   it("supports content inclusion and optional avatar filtering", () => {
     const r = record({ signals: { interfaceAsset: true, avatar: true } });
     expect(eligibility(r, defaults).state).toBe("excluded");
@@ -152,8 +146,7 @@ describe("discovery policy", () => {
       "https://x.test/a.png?sig=abc&width=99",
     ]);
   });
-  it("preserves verified MIME through rediscovery", () =>
-    expect(
+  it("preserves verified MIME through rediscovery", () => { expect(
       mergeVariants(
         [
           {
@@ -162,8 +155,8 @@ describe("discovery policy", () => {
           },
         ],
         [variant("https://x.test/a.jpg", "src")],
-      )[0].format,
-    ).toBe("png"));
+      )[0]?.format,
+    ).toBe("png"); });
   it("sniffs actual PNG, JPEG, WebP and SVG signatures", () => {
     expect(sniffImage(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(
       "png",

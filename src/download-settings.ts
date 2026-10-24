@@ -17,6 +17,8 @@ export function normalizeDownloadFolder(value: unknown): string {
       (p) =>
         !p ||
         /^[. ]|[. ]$/.test(p) ||
+        // Control characters are deliberately rejected in folder names.
+        // eslint-disable-next-line no-control-regex
         /[<>:"|?*\u0000-\u001f]/.test(p) ||
         /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(p),
     )

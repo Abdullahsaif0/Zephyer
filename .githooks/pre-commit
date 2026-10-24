@@ -1,0 +1,12 @@
+#!/bin/sh
+# Staged files only: prettier formatting then ESLint on TS/TSX.
+staged_ts=$(git diff --cached --name-only --diff-filter=ACMR -- 'src/**/*.ts' 'src/**/*.tsx' 'tests/**/*.ts')
+staged_all=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -n "$staged_all" ]; then
+  echo "$staged_all" | grep -E '\.(json|html|mjs|css)$|\.gitignore' | xargs -r npx prettier --check
+fi
+
+if [ -n "$staged_ts" ]; then
+  echo "$staged_ts" | xargs npx eslint --max-warnings 0
+fi

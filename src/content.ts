@@ -14,6 +14,9 @@ import {
   type ScanSession,
   type Settings,
   type PagePowerState,
+  type DockLayout,
+  type MediaContext,
+  type Output,
   type Variant,
   defaultOutput,
 } from "./shared";
@@ -130,7 +133,7 @@ function startContent() {
       }
       shadow
         .querySelectorAll(".z-discovery-flash")
-        .forEach((el) => el.remove());
+        .forEach((el) => { el.remove(); });
       if (collecting) {
         root(document);
         resources();
@@ -256,7 +259,7 @@ function startContent() {
     pointerTarget: Element | null = null,
     renderPending = false;
   const host = document.createElement("zephyer-tools");
-  document.querySelectorAll("zephyer-tools").forEach((el) => el.remove());
+  document.querySelectorAll("zephyer-tools").forEach((el) => { el.remove(); });
   const shadow = host.attachShadow({ mode: "closed" });
   const style = document.createElement("style");
   style.textContent = overlayCSS + tokensCSS;
@@ -323,7 +326,7 @@ function startContent() {
     node.textContent = e instanceof Error ? e.message : String(e);
     if (retry) node.append(button("Retry", retry));
     shadow.append(node);
-    setTimeout(() => node.remove(), 6000);
+    setTimeout(() => { node.remove(); }, 6000);
   }
   const send = (m: any) => rpc(m).catch(error);
   const dock =
@@ -407,7 +410,7 @@ function startContent() {
     if (dock) {
       try {
         const result = await rpc<{
-          layout: import("./shared").DockLayout | null;
+          layout: DockLayout | null;
         }>({
           type: "DOCK_GET",
         });
@@ -425,7 +428,7 @@ function startContent() {
     return !!records.get(id)?.variants.some((v) => v.url === current);
   }
   function selectMapped(el: Element, id: string) {
-    if (mappingMatches(el, id)) send({ type: "SELECT", ids: [id] });
+    if (mappingMatches(el, id)) void send({ type: "SELECT", ids: [id] });
     else {
       redraw();
       error("This image changed · Scan now to update page controls");
@@ -434,9 +437,10 @@ function startContent() {
   function downloadMapped(
     el: Element,
     id: string,
-    output: import("./shared").Output,
+    output: Output,
   ) {
-    if (mappingMatches(el, id)) send({ type: "DOWNLOAD", ids: [id], output });
+    if (mappingMatches(el, id))
+      void send({ type: "DOWNLOAD", ids: [id], output });
     else {
       redraw();
       error("This image changed · Scan now to update page controls");
@@ -472,7 +476,7 @@ function startContent() {
     }
     mount();
     host.style.setProperty("display", "block", "important");
-    host.dataset.disabled = String(!active);
+    host.dataset["disabled"] = String(!active);
     updateDock();
     if (!active) return;
     if (!mode && !hover && pointerTarget?.isConnected) {
@@ -511,14 +515,14 @@ function startContent() {
       }
       if (!entry) {
         const box = document.createElement("div");
-        box.dataset.imageId = id;
-        const check = button("Select image", () => selectMapped(el, id));
+        box.dataset["imageId"] = id;
+        const check = button("Select image", () => { selectMapped(el, id); });
         check.className = "check";
         if (mode) {
-          const surface = button("Select image", () => selectMapped(el, id));
+          const surface = button("Select image", () => { selectMapped(el, id); });
           surface.className = "z-select-surface";
           surface.textContent = "";
-          surface.dataset.imageId = id;
+          surface.dataset["imageId"] = id;
           box.append(surface);
           check.tabIndex = -1;
           check.setAttribute("aria-hidden", "true");
@@ -526,8 +530,7 @@ function startContent() {
         }
         box.append(check);
         if (inlineDownload) {
-          const download = downloadButton("Download image", () =>
-            downloadMapped(el, id, defaultOutput),
+          const download = downloadButton("Download image", () => { downloadMapped(el, id, defaultOutput); },
           );
           download.setAttribute("aria-label", "Download image");
           download.className = "z-inline-download";
@@ -552,8 +555,8 @@ function startContent() {
         selected.has(id) ? "Deselect image" : "Select image",
       );
       const pressed = String(selected.has(id));
-      if (check.dataset.selected !== pressed) {
-        check.dataset.selected = pressed;
+      if (check.dataset["selected"] !== pressed) {
+        check.dataset["selected"] = pressed;
         check.replaceChildren(
           iconElement(selected.has(id) ? "check" : "select"),
         );
@@ -591,38 +594,36 @@ function startContent() {
           left: Math.max(4, Math.min(innerWidth - 300, r.left + 5)) + "px",
           top: Math.max(4, r.top + 5) + "px",
         });
-        if (tools.dataset.key !== id) {
+        if (tools.dataset["key"] !== id) {
           const sourceElement = hover;
-          tools.dataset.key = id;
-          tools.dataset.version = "";
+          tools.dataset["key"] = id;
+          tools.dataset["version"] = "";
           tools.replaceChildren();
           const quality = document.createElement("select");
           quality.title = "Download quality";
           quality.setAttribute("aria-label", "Download quality");
           quality.addEventListener("blur", redraw);
-          const download = downloadButton("Download", () =>
-            downloadMapped(sourceElement, id, {
+          const download = downloadButton("Download", () => { downloadMapped(sourceElement, id, {
               ...defaultOutput,
               quality: quality.value,
-            }),
+            }); },
           );
           download.prepend(iconElement("download"));
-          const select = button("Select", () =>
-            selectMapped(sourceElement, id),
+          const select = button("Select", () => { selectMapped(sourceElement, id); },
           );
           tools.append(download, quality, select);
         }
         const quality = tools.querySelector("select")!;
         if (
-          tools.dataset.version !== String(rec.updated) &&
+          tools.dataset["version"] !== String(rec.updated) &&
           shadow.activeElement !== quality
         ) {
           const value = quality.value;
           quality.replaceChildren();
-          for (const [url, label] of [
+          const qualityOptions: [string, string][] = [
             ["best", "Best available"],
             ["displayed", "Displayed version"],
-            ...allowedVariants(rec, settings).map((v) => [
+            ...allowedVariants(rec, settings).map((v): [string, string] => [
               v.url,
               (v.width
                 ? String(v.width) + (v.height ? "×" + v.height : "")
@@ -630,7 +631,8 @@ function startContent() {
                 " · " +
                 v.method,
             ]),
-          ]) {
+          ];
+          for (const [url, label] of qualityOptions) {
             const option = document.createElement("option");
             option.value = url;
             option.textContent = label;
@@ -638,7 +640,7 @@ function startContent() {
           }
           if ([...quality.options].some((o) => o.value === value))
             quality.value = value;
-          tools.dataset.version = String(rec.updated);
+          tools.dataset["version"] = String(rec.updated);
         }
         const select = tools.querySelector("button:last-child")!;
         const pressed = String(selected.has(id));
@@ -799,7 +801,7 @@ function startContent() {
   }
   function urls(css: string) {
     return [...css.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/g)]
-      .map((m) => absolute(m[1], document.baseURI))
+      .map((m) => absolute(m[1] ?? "", document.baseURI))
       .filter(Boolean);
   }
   function addRecord(
@@ -839,12 +841,12 @@ function startContent() {
         ? absolute(el.currentSrc || el.src, document.baseURI)
         : vs[0]?.url || "";
     if (!vs.some((v) => v.url === displayed)) displayed = vs[0]?.url || "";
-    let media: import("./shared").MediaContext | undefined;
+    let media: MediaContext | undefined;
     try {
       if (el) media = mediaContext(el, location.href);
     } catch {}
     if (media?.kind === "story" && !settings.instagramStoriesEnabled) return;
-    let seed =
+    const seed =
       (media?.contentId && media.slideId
         ? `${media.platform}:${media.kind}:${media.contentId}:${media.slideId}`
         : "") ||
@@ -959,7 +961,7 @@ function startContent() {
         height: `${r.height}px`,
       });
       shadow.append(flash);
-      setTimeout(() => flash.remove(), 600);
+      setTimeout(() => { flash.remove(); }, 600);
     }
   }
   function inspect(el: Element) {
@@ -967,7 +969,7 @@ function startContent() {
     if (el instanceof HTMLSourceElement)
       el.closest("picture")?.querySelectorAll("img").forEach(queue);
     if (el.shadowRoot) root(el.shadowRoot);
-    let vs: Variant[] = [];
+    const vs: Variant[] = [];
     if (el instanceof HTMLImageElement) {
       const add = (
         s: string | null,
@@ -1214,7 +1216,7 @@ function startContent() {
           e.preventDefault();
           e.stopImmediatePropagation();
           if (type === "click" && (e as MouseEvent).button === 0)
-            send({ type: "SELECT", ids: [elements.get(el)!] });
+            void send({ type: "SELECT", ids: [elements.get(el)!] });
         }
       },
       true,
@@ -1225,10 +1227,10 @@ function startContent() {
     redraw();
   });
   listen(document, "keydown", (e) => {
-    if (e.key === "Escape" && mode) send({ type: "MODE", value: false });
+    if (e.key === "Escape" && mode) void send({ type: "MODE", value: false });
   });
   const sleep = (ms: number) =>
-    new Promise<void>((r) => setTimeout(() => r(), ms));
+    new Promise<void>((r) => setTimeout(() => { r(); }, ms));
   async function scrollContainers() {
     const result: Element[] = [];
     const generation = runGeneration;
@@ -1254,7 +1256,7 @@ function startContent() {
   let positions: { el: Element | null; x: number; y: number }[] = [];
   function progress() {
     scan.count = collected;
-    send({ type: "SCAN_PROGRESS", scan: { ...scan } });
+    void send({ type: "SCAN_PROGRESS", scan: { ...scan } });
     redraw();
   }
   async function traverse(token: number) {
@@ -1739,11 +1741,11 @@ function startContent() {
           if (!r.ok) throw Error(`HTTP ${r.status}`);
           const b = await boundedBlob(r, 32 * 1024 * 1024);
           const f = new FileReader();
-          f.onload = () => reply({ data: f.result, mime: b.type });
-          f.onerror = () => reply({ error: "Image read failed" });
+          f.onload = () => { reply({ data: f.result, mime: b.type }); };
+          f.onerror = () => { reply({ error: "Image read failed" }); };
           f.readAsDataURL(b);
         })
-        .catch((e) => reply({ error: String(e) }));
+        .catch((e) => { reply({ error: String(e) }); });
       return true;
     }
     return false;

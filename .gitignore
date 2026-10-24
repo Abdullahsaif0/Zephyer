@@ -4,3 +4,7 @@ release/*
 !release/*.md
 test-results/
 .npm-cache/
+coverage/
+.zcode/
+.lint-errors.txt
+.tsc-errors.txt

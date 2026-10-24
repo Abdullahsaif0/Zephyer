@@ -1,4 +1,6 @@
 import { materialCSS } from "./material";
+import { themeIdList, type ThemeId } from "./shared";
+export type { ThemeId };
 export const themes = {
   graphite: {
     name: "Graphite",
@@ -90,14 +92,13 @@ export const themes = {
     hover: "#ecdfcd",
     danger: "#a22c24",
   },
-} as const;
-export type ThemeId = keyof typeof themes;
-export const themeIds = Object.keys(themes) as ThemeId[];
+} as const satisfies Record<ThemeId, unknown>;
+export const themeIds: readonly ThemeId[] = themeIdList;
 export const validTheme = (v: unknown): v is ThemeId =>
-  typeof v === "string" && Object.hasOwn(themes, v);
+  typeof v === "string" && themeIdList.includes(v as ThemeId);
 export function applyTheme(element: HTMLElement, id: ThemeId) {
   const theme = themes[validTheme(id) ? id : "graphite"];
-  element.dataset.theme = validTheme(id) ? id : "graphite";
+  element.dataset["theme"] = validTheme(id) ? id : "graphite";
   for (const key of [
     "bg",
     "surface",

@@ -57,12 +57,14 @@ export function preview(
         let failure = "Preview unavailable";
         for (let i = 0; i < Math.min(3, ordered.length); i++) {
           if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
+          const candidate = ordered[i];
+          if (!candidate) break;
           try {
             const r = await rpc<{ blobUrl: string }>({
               type: "COLLECTION_PREVIEW",
               collectionId,
               id: record.id,
-              url: ordered[i].url,
+              url: candidate.url,
               full,
               requestId,
             });

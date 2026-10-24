@@ -65,8 +65,7 @@ function App() {
     mounted = useRef(true),
     guard = useRef(new Set<string>()),
     retry = useRef<GalleryCommand | undefined>(undefined);
-  const updateOutput = <K extends keyof Output>(key: K, value: Output[K]) =>
-    setOutput((o) => ({ ...o, [key]: value }));
+  const updateOutput = <K extends keyof Output>(key: K, value: Output[K]) => { setOutput((o) => ({ ...o, [key]: value })); };
   async function load() {
     if (fetching.current) {
       again.current = true;
@@ -132,7 +131,7 @@ function App() {
     };
     chrome.runtime.onMessage.addListener(listener);
     const storage = (changes: Record<string, chrome.storage.StorageChange>) => {
-      if (changes.settings) void load();
+      if (changes["settings"]) void load();
     };
     chrome.storage.onChanged.addListener(storage);
     const timer = setInterval(() => void load(), 30000);
@@ -146,17 +145,19 @@ function App() {
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const observer = new ResizeObserver((entries) =>
-      setViewport({
-        width: entries[0].contentRect.width,
-        height: entries[0].contentRect.height,
-      }),
-    );
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry)
+        setViewport({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+    });
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); };
   }, [loading]);
   async function command(request: GalleryCommand) {
-    const key = request.type + (request.type === "JOB" ? request.id : "");
+    const key = request.type + (request.type === "JOB" ? request["id"] : "");
     const guarded = /DOWNLOAD|JOB/.test(request.type);
     if (guarded && guard.current.has(key)) return;
     if (guarded) guard.current.add(key);
@@ -165,7 +166,7 @@ function App() {
     const actual = {
       ...request,
       ...(request.type.startsWith("COLLECTION_") ? { collectionId } : {}),
-      ...(/DOWNLOAD/.test(request.type) && !request.requestId
+      ...(request.type.includes('DOWNLOAD') && !request["requestId"]
         ? { requestId: crypto.randomUUID() }
         : {}),
     };
@@ -245,11 +246,10 @@ function App() {
       ids: [...ids],
       output: { ...output, quality, zip },
     });
-  const show = (id: string) =>
-    setViewer({
+  const show = (id: string) => { setViewer({
       ids: filtered.map((r) => r.id),
       index: filtered.findIndex((r) => r.id === id),
-    });
+    }); };
   const closeViewer = () => {
     const id = viewer?.ids[viewer.index];
     setViewer(undefined);
@@ -262,9 +262,8 @@ function App() {
       (el || scroller.current)?.focus();
     });
   };
-  const current = viewer
-    ? map.current.get(viewer.ids[viewer.index])
-    : undefined;
+  const currentId = viewer?.ids[viewer.index];
+  const current = currentId ? map.current.get(currentId) : undefined;
   return (
     <main className="photos-app" data-selecting={selecting}>
       <header className="photos-header">
@@ -282,14 +281,14 @@ function App() {
         <div className="photos-header-actions">
           <button
             aria-pressed={filterOpen}
-            onClick={() => setFilterOpen(!filterOpen)}
+            onClick={() => { setFilterOpen(!filterOpen); }}
           >
             <Icon name="search" />
             <span>Filters</span>
           </button>
           <button
             aria-pressed={selecting}
-            onClick={() => setSelecting(!selecting)}
+            onClick={() => { setSelecting(!selecting); }}
           >
             <Icon name="select" />
             {selecting ? "Done" : "Select"}
@@ -297,15 +296,14 @@ function App() {
           <button
             aria-label="Output and quality settings"
             title="Output and quality settings"
-            onClick={() => setDrawer(drawer === "output" ? null : "output")}
+            onClick={() => { setDrawer(drawer === "output" ? null : "output"); }}
           >
             <Icon name="quality" />
           </button>
           <button
             aria-label="Downloads"
             title="Downloads"
-            onClick={() =>
-              setDrawer(drawer === "downloads" ? null : "downloads")
+            onClick={() => { setDrawer(drawer === "downloads" ? null : "downloads"); }
             }
           >
             <Icon name="download" />
@@ -340,7 +338,7 @@ function App() {
           <select
             aria-label="Grid density"
             value={density}
-            onChange={(e) => setDensity(e.target.value)}
+            onChange={(e) => { setDensity(e.target.value); }}
           >
             <option value="small">Small</option>
             <option value="medium">Medium</option>
@@ -355,7 +353,7 @@ function App() {
             <input
               type="search"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); }}
               placeholder="Name or source"
             />
           </label>
@@ -366,16 +364,15 @@ function App() {
               min="0"
               max="100000"
               value={min || ""}
-              onChange={(e) =>
-                setMin(
+              onChange={(e) => { setMin(
                   Math.max(0, Math.min(100000, Number(e.target.value) || 0)),
-                )
+                ); }
               }
             />
           </label>
           <label>
             Format
-            <select value={format} onChange={(e) => setFormat(e.target.value)}>
+            <select value={format} onChange={(e) => { setFormat(e.target.value); }}>
               <option value="">All formats</option>
               {settings.allowedFormats.map((f) => (
                 <option key={f} value={f}>
@@ -386,7 +383,7 @@ function App() {
           </label>
           <label>
             Sort
-            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+            <select value={sort} onChange={(e) => { setSort(e.target.value); }}>
               <option value="discovered">Discovery order</option>
               <option value="largest">Largest first</option>
               <option value="name">Name</option>
@@ -406,7 +403,7 @@ function App() {
           <button
             key={value}
             aria-pressed={review === value}
-            onClick={() => setReview(value)}
+            onClick={() => { setReview(value); }}
           >
             {label}
             <span>{counts[value]}</span>
@@ -435,7 +432,7 @@ function App() {
           {actionError && (
             <button
               aria-label="Dismiss error"
-              onClick={() => setActionError("")}
+              onClick={() => { setActionError(""); }}
             >
               <Icon name="close" />
             </button>
@@ -446,7 +443,7 @@ function App() {
         className="photos-scroll"
         ref={scroller}
         tabIndex={-1}
-        onScroll={(e) => setScroll(e.currentTarget.scrollTop)}
+        onScroll={(e) => { setScroll(e.currentTarget.scrollTop); }}
       >
         {loading ? (
           <div className="photos-empty">
@@ -515,8 +512,8 @@ function App() {
                       settings={settings}
                       selecting={selecting}
                       review={review !== "accepted"}
-                      open={() => show(record.id)}
-                      choose={() => choose(record.id)}
+                      open={() => { show(record.id); }}
+                      choose={() => { choose(record.id); }}
                       include={() =>
                         void command({
                           type: "COLLECTION_INCLUDE",
@@ -570,11 +567,10 @@ function App() {
           <button
             className="primary"
             disabled={!selected.length || pending > 0}
-            onClick={() =>
-              download(
+            onClick={() => { download(
                 selected.map((r) => r.id),
                 false,
-              )
+              ); }
             }
           >
             <Icon name="download" />
@@ -582,11 +578,10 @@ function App() {
           </button>
           <button
             disabled={!selected.length || pending > 0}
-            onClick={() =>
-              download(
+            onClick={() => { download(
                 selected.map((r) => r.id),
                 true,
-              )
+              ); }
             }
           >
             <Icon name="zip" />
@@ -603,7 +598,7 @@ function App() {
         >
           <div className="photos-drawer-heading">
             <h2>{drawer === "output" ? "Output settings" : "Downloads"}</h2>
-            <button aria-label="Close drawer" onClick={() => setDrawer(null)}>
+            <button aria-label="Close drawer" onClick={() => { setDrawer(null); }}>
               <Icon name="close" />
             </button>
           </div>
@@ -623,8 +618,7 @@ function App() {
           index={viewer.index}
           total={viewer.ids.length}
           close={closeViewer}
-          move={(delta) =>
-            setViewer((v) =>
+          move={(delta) => { setViewer((v) =>
               v
                 ? {
                     ...v,
@@ -634,10 +628,10 @@ function App() {
                     ),
                   }
                 : v,
-            )
+            ); }
           }
-          choose={() => choose(current.id)}
-          download={(quality) => download([current.id], false, quality)}
+          choose={() => { choose(current.id); }}
+          download={(quality) => { download([current.id], false, quality); }}
           disabled={pending > 0}
         />
       )}

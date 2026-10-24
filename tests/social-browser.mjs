@@ -1,3 +1,4 @@
+/* global clicks, index -- page-context globals defined by the social fixtures */
 import { chromium } from "playwright";
 import { resolve } from "node:path";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";

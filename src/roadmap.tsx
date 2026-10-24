@@ -20,8 +20,8 @@ export function Roadmap({
       .then(async (stored) => {
         if (
           !live ||
-          stored.settings?.showUpcoming === false ||
-          stored.roadmapSeen === campaign
+          stored["settings"]?.showUpcoming === false ||
+          stored["roadmapSeen"] === campaign
         )
           return;
         await chrome.storage.local.set({ roadmapSeen: campaign });
@@ -57,7 +57,7 @@ export function Roadmap({
           <button
             className="icon"
             aria-label="Close upcoming features"
-            onClick={() => setVisible(false)}
+            onClick={() => { setVisible(false); }}
           >
             <Icon name="close" />
           </button>
@@ -84,12 +84,12 @@ export function Roadmap({
         </ul>
       )}
       <div className="roadmap-actions">
-        <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+        <button onClick={() => { setExpanded(!expanded); }} aria-expanded={expanded}>
           {expanded ? "Less detail" : "Explore plans"}
         </button>
         {!manual && (
           <>
-            <button onClick={() => setVisible(false)}>Skip</button>
+            <button onClick={() => { setVisible(false); }}>Skip</button>
             <button onClick={hideForever}>Don’t show again</button>
           </>
         )}

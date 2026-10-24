@@ -39,20 +39,18 @@ function Options() {
     }
   }
   useEffect(() => {
-    chrome.storage.local.get(["settings", "sequenceNext"]).then((r) => {
-      mergeSaved({ ...defaults, ...r.settings });
-      setNextSequence(r.sequenceNext || 1);
+    void chrome.storage.local.get(["settings", "sequenceNext"]).then((r) => {
+      mergeSaved({ ...defaults, ...r["settings"] });
+      setNextSequence(r["sequenceNext"] || 1);
     });
-    const listener = (changes: {
-      [key: string]: chrome.storage.StorageChange;
-    }) => {
-      if (changes.sequenceNext)
-        setNextSequence(changes.sequenceNext.newValue || 1);
-      if (changes.settings)
-        mergeSaved({ ...defaults, ...changes.settings.newValue });
+    const listener = (changes: Record<string, chrome.storage.StorageChange>) => {
+      if (changes["sequenceNext"])
+        setNextSequence(changes["sequenceNext"].newValue || 1);
+      if (changes["settings"])
+        mergeSaved({ ...defaults, ...changes["settings"].newValue });
     };
     chrome.storage.onChanged.addListener(listener);
-    return () => chrome.storage.onChanged.removeListener(listener);
+    return () => { chrome.storage.onChanged.removeListener(listener); };
   }, []);
   function edit(k: keyof Settings) {
     dirty.current.add(k);
@@ -81,7 +79,7 @@ function Options() {
     );
     setErrors((old) => {
       const result = { ...old };
-      for (const k of keys) delete result[k];
+      for (const k of keys) Reflect.deleteProperty(result, k);
       return { ...result, ...invalid };
     });
     if (Object.keys(invalid).length) {
@@ -102,7 +100,7 @@ function Options() {
               : {}),
           });
           const stored = await chrome.storage.local.get("settings");
-          const persisted = { ...defaults, ...stored.settings };
+          const persisted = { ...defaults, ...stored["settings"] };
           for (const k of keys)
             if (versions.current.get(k) === stamps.get(k))
               dirty.current.delete(k);
@@ -269,8 +267,7 @@ function Options() {
           <input
             type="checkbox"
             checked={s.instagramStoriesEnabled}
-            onChange={(e) =>
-              change("instagramStoriesEnabled", e.target.checked)
+            onChange={(e) => { change("instagramStoriesEnabled", e.target.checked); }
             }
           />
           Optional Instagram still-image Stories
@@ -283,7 +280,7 @@ function Options() {
           <input
             type="checkbox"
             checked={s.automaticCollection}
-            onChange={(e) => change("automaticCollection", e.target.checked)}
+            onChange={(e) => { change("automaticCollection", e.target.checked); }}
           />{" "}
           Automatically collect images in activated tabs
         </label>
@@ -302,13 +299,12 @@ function Options() {
               <input
                 type="checkbox"
                 checked={s.allowedFormats.includes(format)}
-                onChange={(e) =>
-                  change(
+                onChange={(e) => { change(
                     "allowedFormats",
                     e.target.checked
                       ? [...s.allowedFormats, format]
                       : s.allowedFormats.filter((f) => f !== format),
-                  )
+                  ); }
                 }
                 disabled={
                   s.allowedFormats.length === 1 &&
@@ -333,7 +329,7 @@ function Options() {
                 type="checkbox"
                 checked={s[key]}
                 disabled={key !== "smartCleanup" && !s.smartCleanup}
-                onChange={(e) => change(key, e.target.checked)}
+                onChange={(e) => { change(key, e.target.checked); }}
               />{" "}
               {label}
             </label>
@@ -350,11 +346,10 @@ function Options() {
               aria-describedby={
                 errors.minImageSize ? "error-minImageSize" : undefined
               }
-              onChange={(e) =>
-                change(
+              onChange={(e) => { change(
                   "minImageSize",
                   e.target.value === "" ? NaN : Number(e.target.value),
-                )
+                ); }
               }
             />
             {fieldError("minImageSize")}
@@ -374,7 +369,7 @@ function Options() {
           <input
             type="checkbox"
             checked={s.enabled}
-            onChange={(e) => change("enabled", e.target.checked)}
+            onChange={(e) => { change("enabled", e.target.checked); }}
           />{" "}
           Enable Zephyer globally
         </label>
@@ -382,7 +377,7 @@ function Options() {
           <input
             type="checkbox"
             checked={s.alwaysVisible}
-            onChange={(e) => change("alwaysVisible", e.target.checked)}
+            onChange={(e) => { change("alwaysVisible", e.target.checked); }}
           />{" "}
           Always show image outlines and download buttons
         </label>
@@ -398,7 +393,7 @@ function Options() {
               edit("disabledSites");
               setSites(e.target.value);
             }}
-            onBlur={() => persist(s)}
+            onBlur={() => { persist(s); }}
             placeholder={"example.com\nwww.example.org"}
             rows={4}
           />
@@ -422,11 +417,10 @@ function Options() {
               aria-describedby={
                 errors.scanMinutes ? "error-scanMinutes" : undefined
               }
-              onChange={(e) =>
-                change(
+              onChange={(e) => { change(
                   "scanMinutes",
                   e.target.value === "" ? NaN : Number(e.target.value),
-                )
+                ); }
               }
             />
             {fieldError("scanMinutes")}
@@ -441,11 +435,10 @@ function Options() {
               aria-describedby={
                 errors.scanImages ? "error-scanImages" : undefined
               }
-              onChange={(e) =>
-                change(
+              onChange={(e) => { change(
                   "scanImages",
                   e.target.value === "" ? NaN : Number(e.target.value),
-                )
+                ); }
               }
             />
             {fieldError("scanImages")}
@@ -468,7 +461,7 @@ function Options() {
               edit("downloadFolder");
               setS((s) => ({ ...s, downloadFolder: e.target.value }));
             }}
-            onBlur={() => persist(s, sites, ["downloadFolder"])}
+            onBlur={() => { persist(s, sites, ["downloadFolder"]); }}
           />
           {fieldError("downloadFolder")}
         </label>
@@ -488,7 +481,7 @@ function Options() {
           <input
             type="checkbox"
             checked={s.groupDownloads}
-            onChange={(e) => change("groupDownloads", e.target.checked)}
+            onChange={(e) => { change("groupDownloads", e.target.checked); }}
           />{" "}
           Create website and batch subfolders
         </label>
@@ -496,7 +489,7 @@ function Options() {
           <input
             type="checkbox"
             checked={s.askWhereToSave}
-            onChange={(e) => change("askWhereToSave", e.target.checked)}
+            onChange={(e) => { change("askWhereToSave", e.target.checked); }}
           />{" "}
           Ask where to save each file or ZIP
         </label>
@@ -519,7 +512,7 @@ function Options() {
               edit("sequencePrefix");
               setS((s) => ({ ...s, sequencePrefix: e.target.value }));
             }}
-            onBlur={() => persist(s, sites, ["sequencePrefix"])}
+            onBlur={() => { persist(s, sites, ["sequencePrefix"]); }}
           />
           {fieldError("sequencePrefix")}
         </label>
@@ -545,11 +538,10 @@ function Options() {
             aria-describedby={
               errors.concurrency ? "error-concurrency" : undefined
             }
-            onChange={(e) =>
-              change(
+            onChange={(e) => { change(
                 "concurrency",
                 e.target.value === "" ? NaN : Number(e.target.value),
-              )
+              ); }
             }
           />
           {fieldError("concurrency")}
@@ -572,7 +564,7 @@ function Options() {
           <input
             type="checkbox"
             checked={s.showUpcoming}
-            onChange={(e) => change("showUpcoming", e.target.checked)}
+            onChange={(e) => { change("showUpcoming", e.target.checked); }}
           />{" "}
           Show upcoming features once per release in the library
         </label>

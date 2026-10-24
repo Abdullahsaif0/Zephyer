@@ -155,7 +155,7 @@ export function siteCapability(doc: Document, url: string): SiteCapability {
   const blocked =
     /\/(accounts\/login|challenge|checkpoint|login)(\/|$)/.test(u.pathname) ||
     !!doc.querySelector('form input[type="password"]');
-  const stories = a.id === "instagram" && /^\/stories\//.test(u.pathname);
+  const stories = a.id === "instagram" && u.pathname.startsWith("/stories/");
   const carousel =
     !!root &&
     root.matches(
@@ -208,13 +208,13 @@ export function mediaContext(
       if (!a.hosts.test(u.hostname)) continue;
       const m = (u.pathname + u.search).match(a.post);
       if (m) {
-        contentId = m[1];
+        contentId = m[1] ?? "";
         break;
       }
     } catch {}
   }
   const stories =
-    a.id === "instagram" && /^\/stories\//.test(new URL(url).pathname);
+    a.id === "instagram" && new URL(url).pathname.startsWith("/stories/");
   const avatar =
     /avatar|profile.{0,12}(picture|photo)|صورة الملف/i.test(
       el.getAttribute("alt") || "",

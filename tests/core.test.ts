@@ -42,10 +42,9 @@ const record = (values: Partial<ImageRecord> = {}): ImageRecord => ({
   ...values,
 });
 describe("URL and variant integrity", () => {
-  it("preserves signatures and meaningful query parameters", () =>
-    expect(
+  it("preserves signatures and meaningful query parameters", () => { expect(
       absolute("/photo.jpg?sig=a%2Fb&w=900#fragment", "https://cdn.test"),
-    ).toBe("https://cdn.test/photo.jpg?sig=a%2Fb&w=900"));
+    ).toBe("https://cdn.test/photo.jpg?sig=a%2Fb&w=900"); });
   it("rejects script, file and extension URLs", () => {
     for (const u of [
       "javascript:alert(1)",
@@ -62,18 +61,17 @@ describe("URL and variant integrity", () => {
     expect(v).toHaveLength(1);
     expect(v[0]).toMatchObject({ width: 400, height: 200, verified: true });
   });
-  it("keeps differently signed resources separate", () =>
-    expect(
+  it("keeps differently signed resources separate", () => { expect(
       mergeVariants(
         [variant("https://x/a?sig=1", "src")],
         [variant("https://x/a?sig=2", "src")],
       ),
-    ).toHaveLength(2));
+    ).toHaveLength(2); });
   it("sorts best, displayed and explicitly selected variants", () => {
     const r = record();
-    expect(candidates(r, "best")[0].width).toBe(2400);
-    expect(candidates(r, "displayed")[0].width).toBe(200);
-    expect(candidates(r, r.displayed)[0].url).toBe(r.displayed);
+    expect(candidates(r, "best")[0]?.width).toBe(2400);
+    expect(candidates(r, "displayed")[0]?.width).toBe(200);
+    expect(candidates(r, r.displayed)[0]?.url).toBe(r.displayed);
   });
   it("parses responsive width and density lists without rewriting URLs", () => {
     expect(
@@ -93,8 +91,7 @@ describe("output behavior", () => {
       height: 800,
     });
   });
-  it("retains original bounds with no resize", () =>
-    expect(resized(640, 480, 0, 0)).toEqual({ width: 640, height: 480 }));
+  it("retains original bounds with no resize", () => { expect(resized(640, 480, 0, 0)).toEqual({ width: 640, height: 480 }); });
   it("sanitizes Windows reserved names and path injection", () => {
     expect(sanitize("CON")).toBe("_CON");
     expect(sanitize("../private:image?")).not.toMatch(/[\\/:?]/);
@@ -121,7 +118,7 @@ describe("output behavior", () => {
         variant("https://x/large", "srcset", 2400),
       ],
     });
-    expect(candidates(r, "best")[0].width).toBe(2400);
+    expect(candidates(r, "best")[0]?.width).toBe(2400);
   });
   it("uses stable distinct URL identities", () => {
     expect(hash("https://a?a=1")).toBe(hash("https://a?a=1"));
