@@ -59,8 +59,8 @@ export async function initCollections() {
       }
     }
     if (
-      c.epoch !== epoch ||
-      (c.state === "detached" && ![...galleryTabs.values()].includes(c.id))
+      (c.epoch !== epoch || (c.state === "detached" && ![...galleryTabs.values()].includes(c.id))) &&
+      !c.pinned
     )
       await deleteCollection(c.id);
     else if (c.state === "live") {
@@ -145,7 +145,7 @@ export async function detach(tabId: number) {
   if (!id) return;
   const c = await getCollection(id);
   if (!c) return;
-  if ([...galleryTabs.values()].includes(id)) {
+  if ([...galleryTabs.values()].includes(id) || c.pinned) {
     await patchCollection(c.id, {
       state: "detached",
       scan:
@@ -204,18 +204,25 @@ export async function closeTab(tabId: number) {
   await persist();
   if (id && ![...galleryTabs.values()].includes(id)) {
     const c = await getCollection(id);
-    if (c?.state === "detached") await deleteCollection(id);
+    if (c?.state === "detached" && !c.pinned) await deleteCollection(id);
   }
 }
 export async function requireCollection(id: unknown) {
   if (typeof id !== "string" || id.length > 80)
     throw Error("Invalid collection");
   const c = await getCollection(id);
-  if (!c || c.epoch !== epoch)
+  // Pinned collections are deliberately session-independent: they survive
+  // browser restarts, so epoch equality is not required for them.
+  if (!c || (c.epoch !== epoch && !c.pinned))
     throw Error(
       "Session ended · return to the website and click Zephyer to collect again",
     );
   return c;
+}
+export async function updateCollectionPinned(id: string, pinned: boolean) {
+  const c = await getCollection(id);
+  if (!c) throw Error("Collection unavailable");
+  await patchCollection(id, { pinned });
 }
 export async function retainGallery(
   tabId: number | undefined,

@@ -215,6 +215,45 @@ try {
       /1 selected/,
     );
   });
+  await test("pinned collections survive the session-epoch sweep", async () => {
+    const openedNow = await rpc({ type: "OPEN_GALLERY", tabId });
+    // Pin the collection, then simulate a browser restart: a fresh session
+    // epoch is minted, but the pinned collection must remain reachable
+    // through requireCollection (gallery commands) and still hold its records.
+    const pinResult = await rpc({
+      type: "COLLECTION_PIN",
+      collectionId: openedNow.collectionId,
+      pinned: true,
+    });
+    assert.equal(pinResult, true, `pin response: ${JSON.stringify(pinResult)}`);
+    await worker.evaluate(async () => {
+      await chrome.storage.session.set({ collectionEpoch: "fresh-epoch" });
+    });
+    const storedPinned = await worker.evaluate(async (id) => {
+      const r = await new Promise((resolve, reject) => {
+        const req = indexedDB.open("zephyer");
+        req.onsuccess = () => {
+          const db = req.result;
+          const g = db
+            .transaction("collections")
+            .objectStore("collections")
+            .get(id);
+          g.onsuccess = () => resolve(g.result);
+          g.onerror = () => reject(g.error);
+        };
+        req.onerror = () => reject(req.error);
+      });
+      return !!r?.pinned;
+    }, openedNow.collectionId);
+    assert.equal(storedPinned, true, "pin did not persist to IndexedDB");
+    const meta = await rpc({
+      type: "COLLECTION_META",
+      collectionId: openedNow.collectionId,
+    });
+    assert.equal(meta.collection.pinned, true);
+    assert(meta.ids.length > 0, "pinned collection lost its records");
+    assert.equal(meta.settings.enabled, true, "still on same settings");
+  });
 } catch (e) {
   console.error(e);
   try {

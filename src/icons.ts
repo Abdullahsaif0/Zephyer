@@ -47,6 +47,7 @@ const paths = {
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   image:
     '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="8" cy="8" r="1.5"/><path d="m4 17 5-5 4 4 3-3 5 5"/>',
+  pin: '<path d="M9 4h6l-1 5 3 3v2h-5v6l-1 1-1-1v-6H7v-2l3-3Z"/>',
 } as const;
 export type IconName = keyof typeof paths;
 export function iconSVG(name: IconName) {

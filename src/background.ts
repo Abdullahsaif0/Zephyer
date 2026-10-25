@@ -18,8 +18,9 @@ import {
   announceCollection,
   galleryNavigated,
   retainGallery,
+  updateCollectionPinned,
 } from "./collections";
-import { collectionRecords, patchCollection } from "./db";
+import { getCollection, collectionRecords, patchCollection } from "./db";
 import { pagePower, mergeSiteRules } from "./power";
 import { validHostname, preferenceError } from "./preferences";
 import {
@@ -2109,6 +2110,20 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           await put("records", [r]);
         });
         changed();
+        return true;
+      }
+      case "COLLECTION_PIN": {
+        if (!ui || typeof m.pinned !== "boolean")
+          throw Error("Invalid pin request");
+        const c = await getCollection(m.collectionId);
+        if (!c) throw Error("Collection unavailable");
+        await updateCollectionPinned(c.id, m.pinned);
+        chrome.runtime
+          .sendMessage({
+            type: "COLLECTION_NOTICE",
+            collectionId: c.id,
+          })
+          .catch(() => {});
         return true;
       }
       case "COLLECTION_SELECT":

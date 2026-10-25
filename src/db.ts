@@ -210,7 +210,7 @@ export async function deleteCollection(id: string) {
 
 export async function patchCollection(
   id: string,
-  changes: Pick<Partial<Collection>, "state" | "scan" | "title">,
+  changes: Pick<Partial<Collection>, "state" | "scan" | "title" | "pinned">,
 ) {
   const d = await db();
   return new Promise<void>((resolve, reject) => {

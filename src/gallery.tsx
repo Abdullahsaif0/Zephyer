@@ -333,18 +333,45 @@ function App() {
                   : "Collected from your website"}
           </span>
         </div>
-        <label>
-          Density{" "}
-          <select
-            aria-label="Grid density"
-            value={density}
-            onChange={(e) => { setDensity(e.target.value); }}
+        <div className="photos-context-actions">
+          <button
+            className="photos-pin"
+            aria-label={
+              meta?.collection.pinned
+                ? "Unpin collection"
+                : "Keep this collection after the session"
+            }
+            aria-pressed={!!meta?.collection.pinned}
+            title={
+              meta?.collection.pinned
+                ? "Pinned · survives browser restarts"
+                : "Pin · keep after the browser session ends"
+            }
+            disabled={!meta}
+            onClick={() => {
+              if (!meta) return;
+              void command({
+                type: "COLLECTION_PIN",
+                collectionId: meta.collection.id,
+                pinned: !meta.collection.pinned,
+              });
+            }}
           >
-            <option value="small">Small</option>
-            <option value="medium">Medium</option>
-            <option value="large">Large</option>
-          </select>
-        </label>
+            <Icon name="pin" />
+          </button>
+          <label>
+            Density{" "}
+            <select
+              aria-label="Grid density"
+              value={density}
+              onChange={(e) => { setDensity(e.target.value); }}
+            >
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </label>
+        </div>
       </section>
       {filterOpen && (
         <section className="photos-filters">

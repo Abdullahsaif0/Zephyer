@@ -316,6 +316,11 @@ export type Message =
     }
   | { type: "COLLECTION_INCLUDE"; collectionId: string; id: string }
   | {
+      type: "COLLECTION_PIN";
+      collectionId: string;
+      pinned: boolean;
+    }
+  | {
       type: "COLLECTION_DOWNLOAD";
       collectionId: string;
       ids: string[];
@@ -406,6 +411,7 @@ export const protocolRegistry = {
   COLLECTION_BATCH: "ui",
   COLLECTION_SELECT: "ui",
   COLLECTION_INCLUDE: "ui",
+  COLLECTION_PIN: "ui",
   COLLECTION_DOWNLOAD: "ui",
   COLLECTION_PREVIEW: "ui",
   PREVIEW_RELEASE: "ui",
