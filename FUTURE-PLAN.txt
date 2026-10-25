@@ -1,0 +1,748 @@
+================================================================================
+ZEPHYER — FUTURE PLAN (v2.x → v4)
+A decision document, not a wish list.
+Written 2026-10-25 against v1.9.0 (commit 5fe8602, tag v1.9.0).
+Purpose: answer "what next?" once, with logic, so future sessions don't
+re-litigate. Each section states the current fact, the decision, the reason,
+and the trigger to revisit it.
+================================================================================
+
+CONTENTS
+00. How to use this document (rules of engagement)
+01. Product thesis and non-negotiables (what Zephyer must never become)
+02. Current state inventory (what is actually true today)
+03. What was missed and should have existed already (engineering gaps)
+04. Target architecture (v2.x): the shape to converge on, and why
+05. Design system: build once, follow everywhere (incl. anti-AI-slop rules)
+06. AI in Zephyer: levels, purposes, timing, hard constraints
+07. Social-media architecture: adapter SDK, capability tiers, test fixtures
+08. Scaling engineering: memory, CPU, storage, queueing, budgets
+09. Data lifecycle, privacy, security and legal posture
+10. Distribution: Chrome Web Store, website v1, docs, support runbook
+11. When a backend becomes necessary (and when it is a mistake)
+12. Premium website + monetization: timing, shape, and what never to charge for
+13. Optional sync: design for user-owned backends before building our own
+14. Team/process: CI, release engineering, review checklists, migrations
+15. Metrics that matter (north-star + guardrails)
+16. Risk register with mitigations
+17. Phased roadmap with gates (v1.10 → v4.0)
+18. Decision log (answers to the questions you didn't ask but should have)
+19. Appendix: concrete checklists for the next three milestones
+
+================================================================================
+00. HOW TO USE THIS DOCUMENT
+================================================================================
+- Everything here is a decision with a reason and a revisit trigger. If a
+  trigger fires, re-open the decision; otherwise execute the plan.
+- Priority rule: correctness > privacy > measured performance > new features
+  > visual polish. If a feature conflicts with an earlier rule, the feature
+  loses or is redesigned.
+- Anti-slop rule (see 05.4): a capability ships only if it answers "what
+  repeated, costly user action does this remove?" If the answer is weak, it
+  does not ship, however impressive the demo looks.
+- Versions are gates, not dates. Never promise calendar dates to users.
+- The local-only promise is a feature, not a limitation. It is the main
+  differentiator vs cloud downloaders. Protect it in every design review.
+
+================================================================================
+01. PRODUCT THESIS AND NON-NEGOTIABLES
+================================================================================
+Zephyer is a private, on-demand image collector for the browser: discover,
+review, select, download originals or ZIPs, locally convert, and organize.
+It is NOT a crawler, NOT a scraping service, NOT an AI photo manager, and
+NOT a social automation tool.
+
+Non-negotiables (invariant across all future versions):
+1. Opt-in per tab and per site. Nothing runs before the user activates.
+2. No server, account, analytics, remote code, or remote AI by default.
+   Exceptions must be explicit, opt-in, and documented in one place.
+3. No bypass of login walls, age gates, anti-bot challenges, robots rules,
+   signed-URL protections or rate limits. Access is what the user's own
+   browser can already see. This is both an ethics and a ToS position.
+4. No auto-merge, auto-delete, auto-like/follow/comment/DM. Selection and
+   review are user actions.
+5. Downloads are best-effort and honest: "best available" is never claimed
+   to be a reconstructed original; failures are surfaced with traces.
+6. Accessibility and low-end devices are first-class (forced-colors,
+   reduced-motion, reduced-transparency, keyboard, screen readers).
+7. Every release is reproducible, packaged, hash-verified, and documented
+   with its validation evidence. Never weaken a failing test to pass.
+
+Why this matters for the future: the extension's trust story is its brand.
+Any future backend, AI feature, or monetization must be compatible with
+these invariants or it is out of scope by definition.
+
+================================================================================
+02. CURRENT STATE INVENTORY (v1.9.0, verified)
+================================================================================
+Shipped and verified:
+- MV3 extension, Chrome 116+, TypeScript strict (7 flags beyond strict),
+  113 unit tests + 12 Playwright browser suites (~150 checks) all green.
+- Typed protocol registry (sender roles enforced at router + compile time).
+- One TabState map with a single releaseTab cleanup path; structured
+  DownloadFailure kinds; alarm-backed recovery; durable jobs + sequence.
+- Discovery: DOM + srcset + lazy attrs + CSS backgrounds + shadow DOM +
+  resource timing + SVG/canvas + blob + frames + social adapters
+  (Instagram/Facebook/X/Pinterest, carousel/stories traversal, 50-item cap,
+  explicit consent, blocked-page detection, generic fallback).
+- Retrieval tiers: native chrome.downloads, offscreen fetch with cookies,
+  page-context byte fallback, same-post refresh on 401/403/404/410.
+  Bounded bytes (250MB), per-host serialization (tested), probe cache with
+  host cooldowns, header-based dimension sniffing for common formats.
+- Offscreen: decode/convert/ZIP, blob lifetime contract, idle close,
+  DIGEST (SHA-256) and PHASH (dHash) operations.
+- IndexedDB v4: records/jobs/collections + albums/tags/fingerprints.
+  Compound indexes, 200-record paging, atomic batched writes.
+- Collections: session-scoped with epoch+documentId; pinned collections
+  survive restarts (browser-tested).
+- Gallery: virtualized grid, viewer, output settings, jobs, duplicates
+  segment (exact + perceptual groups), pin toggle, 6 palettes, glass
+  materials, reduced-motion/contrast fallbacks.
+- Preferences: autosave with per-field validation, site profiles,
+  naming presets with live preview, disabled-site merge.
+- Engineering: ESLint with boundaries (0 errors, 453 warnings ratchet),
+  coverage ratchet on pure modules, property-based tests, protocol
+  exhaustiveness tests, invariant suites (per-host GET serialization,
+  sequence monotonicity across worker kill), CI workflow files + Dependabot
+  committed but NOT executing (account-level Actions disabled; appeal
+  pending). Git repo public with tagged releases v1.8.0 and v1.9.0.
+
+Known debt (do not re-discover, just schedule):
+- background.ts is still one file (~2.6k lines) after TabState consolidation;
+  physical module split (router/scans/queue/recovery/settings) is pending.
+- panel.tsx remains ~870 lines after extracting JobCard/ImageCard; shared
+  OutputSettings/Jobs between panel and gallery not unified.
+- ~453 lint warnings (non-null assertions 112, template expressions 91,
+  misused-promises 46, explicit-any 42, etc.). Ratchet only goes down.
+- exactOptionalPropertyTypes is on; protocol request/response types are
+  not yet fully paired per method (registry v2 needed).
+- No UI component tests (gallery/panel are browser-tested only).
+- Live social compatibility is mostly unverified (login walls, challenges);
+  fixtures prove adapters, not production selectors.
+- CI has never executed on GitHub (account restriction). Local gates only.
+
+================================================================================
+03. WHAT WAS MISSED AND SHOULD HAVE EXISTED ALREADY
+================================================================================
+These are not "nice to have"; each is a concrete gap with an owner task.
+G1. Executable CI. The single biggest process gap. Fix first: unblock the
+    account or run the same workflow on a self-hosted runner / alternate
+    host. Until then every merge is manual-verified only.
+G2. UI component tests with a DOM environment (gallery grid math, filters,
+    output settings, panel list virtualization) + axe-core accessibility
+    checks in CI. Browser suites cover behavior but not per-component
+    regressions or a11y rules systematically.
+G3. Protocol v2: typed request/response pairs per method, generated from
+    one table; runtime validator on both ends; docs generated from the same
+    table. This is what makes future features cheap and safe.
+G4. Adapter SDK (see 07) instead of hardcoded social selectors + a fixture
+    recorder with sanitized HAR replay and an adapter health dashboard.
+G5. Settings export/import (JSON) and a sanitized diagnostics bundle for
+    support (redacts URLs, cookies, paths). Users will ask for both.
+G6. A formal threat model and third-party security review of credentialed
+    fetch, host permissions, page-byte fallback, and content-script trust.
+    Plus SBOM generation and dependency provenance checks in CI.
+G7. Localization (i18n) and RTL layout. The UI is English-only today.
+G8. User documentation site and an in-product shortcuts/help overlay.
+G9. Error budgets + performance budgets as enforced tests, not just notes:
+    e.g. 5000-record scans keep main-thread tasks <100ms, memory <300MB,
+    no unbounded record growth on infinite feeds (current records map is
+    only capped by scanImages, not by memory policy).
+G10. Reproducible release pipeline: version bump -> build -> test -> zip ->
+    verify -> tag -> changelog -> (optional) store upload, in one command
+    or workflow, with rollback instructions and staged rollout notes.
+G11. Support runbook: known failure categories with user-facing fixes
+    (expired signed URLs, anti-hotlink, closed shadow roots, tainted
+    canvas, sandboxed frames, WebP/AVIF enablement, Stories consent).
+G12. Feature flags for risky features (AI, traversal, video) so a bad
+    rollout can be disabled without a release rollback.
+
+================================================================================
+04. TARGET ARCHITECTURE (v2.x)
+================================================================================
+Keep the four-context MV3 shape; it is correct. Evolve within it:
+
+A. Background split into background/{router,scans,queue,recovery,settings}.
+   - The typed registry becomes the only place messages are declared.
+   - Sender gating is table-driven; per-method handler refinements remain.
+   - Queue has a formal item state machine diagram in docs; pump remains
+     claim-then-act, per-host serialized, saveAs-exclusive, alarm-backed.
+   - Recovery stays persistence + wake-on-event; no keep-alive hacks.
+
+B. Protocol v2 (from G3): one table produces the Message union, sender
+   roles, request/response types, validators, and docs/protocol.md.
+   Offscreen ops join the same table (separate target namespace).
+
+C. UI: shared component library (ImageGrid with one virtualization engine,
+   FilterBar, JobsView, OutputSettings, CommandPalette) used by panel,
+   gallery, options. Split panel.tsx to match gallery structure. Gallery
+   components stay offscreen-preview-backed; no new <img> URL fetching
+   outside the proxy pipeline.
+
+D. Adapter SDK (see 07) for social/media variants. Adapters are data, not
+   branching logic scattered through content.ts. Generic discovery is the
+   guaranteed fallback path.
+
+E. Storage evolution:
+   - records stay per-collection; albums are durable user constructs.
+   - Add an explicit retention policy: cap records per collection by count
+     AND by approximate byte size, with LRU eviction of fingerprint blobs.
+   - IDB v5 (when needed) only adds stores/indexes; never destructive
+     migrations without a real-archive migration test.
+   - Fingerprint + AI embeddings are derived data: recomputable, so they
+     may be dropped under pressure without data loss (documented).
+
+F. Compute: hashing/classification always off main thread (offscreen or
+   WASM worker), batched, abortable, generation-guarded. No WebGPU on the
+   content script; only offscreen. Model weights cached locally, opt-in.
+
+Why not a bigger rewrite (workers pool, backend service, Rust core)?
+Because the measured bottlenecks are DOM observation and message volume,
+not algorithmic compute. The expensive work is already off-thread. A
+rewrite would trade working invariants for novelty. Do not do it.
+
+================================================================================
+05. DESIGN SYSTEM (BUILD ONCE, FOLLOW EVERYWHERE)
+================================================================================
+05.1 Foundations
+- Keep the token layer: color palettes as data, density (small/medium/large),
+  spacing/radius/elevation scales, motion durations/easings, focus rings.
+- Add motion + z-index scales as tokens (dock above modal, HUD below dock,
+  palette above all). Add forced-colors and reduced-motion tokens as
+  first-class variants, not afterthoughts.
+- Theming must keep working in the closed shadow root via the existing
+  injected token string; pages share the same tokens. One source of truth.
+
+05.2 Components to standardize
+- ImageGrid (single virtualization implementation for panel+gallery),
+  PhotoTile, Viewer (dialog, zoom/pan/keys), FilterBar, OutputSettings,
+  JobsView, ScanHUD, Dock, CommandPalette, EmptyState, ErrorState, Toast.
+- Every component ships with: keyboard map, aria roles, focus behavior,
+  reduced-motion variant, forced-colors variant, narrow-width variant,
+  empty/loading/error states. This is a checklist in review, not a hope.
+
+05.3 Motion design (3D/motion-artist perspective, applied responsibly)
+- Use motion to explain state, never to decorate: dock expand/minimize,
+  scan sweep (already present), tile selection, drawer transitions,
+  duplicate-group reveal, viewer zoom interpolation.
+- Optional depth: subtle perspective tilt on dock hover (max 2deg) and
+  parallax on gallery header ONLY if measured frame cost is negligible and
+  prefers-reduced-motion disables it. No continuous 3D scenes, no WebGL
+  backgrounds, no scroll-jacking, no animation that delays a download.
+- Performance budget for motion: 60fps on mid-tier laptops; no layout
+  thrash (transform/opacity only); everything interruptible.
+- Accessibility hard rule: any information conveyed by motion must also be
+  conveyed statically. Reduced-motion = full static equivalence.
+
+05.4 Anti-AI-slop rules (apply to UI and to AI features)
+- No feature whose main value is a screenshot. Every addition removes a
+  repeated user action or it is cut.
+- No vague AI copy: no "smart", "magical", "AI-powered" in the UI. Say what
+  the tool does: "Groups exact duplicates", "Finds similar-looking images".
+- No generated imagery, stock filler, or decorative gradients pretending
+  to be functionality. The product's images are the user's images.
+- No engagement tricks: no badges for "you have 1,000 images!", no streaks,
+  no upsell interstitials during work. Roadmap banners stay skippable.
+- AI output is always labeled with its basis ("matches by pixels",
+  "matches by local model") and confidence/failure states, and always
+  reversible (never auto-merge, never auto-delete).
+
+================================================================================
+06. AI IN ZEPHYER: LEVELS, PURPOSES, TIMING, CONSTRAINTS
+================================================================================
+Levels (each level requires the previous one to be stable):
+L0 (today): deterministic heuristics — smart cleanup, eligibility,
+  favicon/emoji signals, smart filename presets, duplicate exact hashes.
+L1 (today): perceptual hashing for visual similarity. Cheap, explainable.
+L2 (next, v1.11-1.12): LOCAL classification/embeddings for filters and
+  semantic search: "photo / screenshot / illustration / product / meme /
+  document / avatar / logo". Runs in offscreen with WebGPU, WASM fallback.
+L3 (v2.x): richer local analysis: quality scoring (blur/noise), aspect
+  clustering, OCR for screenshots/documents (local WASM OCR), and optional
+  face COUNT (never identity) for "photos of people" filtering.
+L4 (v2.x, assistive): user-approved organization: suggest albums/tags from
+  L2/L3 evidence, with preview and undo. Never automatic actions.
+L5 (optional, BYOK): user-supplied cloud endpoint for power users only.
+  Not required for the product; off by default; explicit per-request
+  disclosure of what leaves the device.
+
+Model choices (evaluate, don't guess in production):
+- Start with a small quantized CLIP/SigLIP-family vision encoder for
+  zero-shot labels + text-image semantic search (~100-150MB quantized;
+  evaluate smaller distilled variants first). Keep a WASM-only fallback
+  small model (~20-40MB) for machines without WebGPU.
+- Lazy-load weights ONLY after an explicit opt-in ("Download local AI
+  model (~X MB), runs offline afterwards"). Cache in Cache Storage + IDB.
+  Version weights and invalidate embeddings on model change.
+- Budgets: classification <=150ms/image on WASM target, batched, idle-
+  time only, abortable, paused while battery is low or the tab is hidden.
+  Never block discovery or downloads on AI.
+
+Hard constraints (permanent):
+- No face recognition, identity, emotion, age or sensitive-attribute
+  inference. Generic labels only. This avoids biometric/privacy risk and
+  most of the ethical/regulatory surface.
+- No training on user data, no telemetry of image content, no model calls
+  to third-party APIs by default. Ever.
+- AI results are advisory UI state (filters, groups, suggestions), not
+  destructive operations. Undo everywhere.
+- AI failure is a normal state: "model unavailable" keeps the product
+  fully functional with deterministic filters.
+
+When to invest: after CI is executable (G1), the UI shared components
+exist (05.2), and duplicate review has real usage value. AI is not the
+next shiny thing; it is a multiplier on an already-solid pipeline.
+
+================================================================================
+07. SOCIAL-MEDIA ARCHITECTURE (SPECIALIZE WITHOUT FRAGILITY)
+================================================================================
+Problem: platforms change selectors weekly; authenticated feeds differ;
+anti-bot responses vary; signed URLs expire; SPA navigation is messy.
+
+Design: Adapter SDK.
+- An adapter is a data package: id, host regex, post/carousel/story URL
+  patterns, content-root selectors, media-context extractors, navigation
+  control matchers (multilingual), capability classifier, variant rewrites
+  (only well-known CDN path transforms, never signature stripping).
+- Adapters are loaded from a versioned table in one module (not scattered
+  ifs). Each has a schema version and a graceful "unsupported" result that
+  falls back to generic discovery.
+- Traversal is bounded (50 items), consent-gated for Stories, restores the
+  original slide when possible, stops at tray boundaries and login walls.
+- Rate behavior: per-host serialization (already enforced), host cooldowns,
+  no parallel traversal, no background continuous scraping. On-demand only.
+
+Verification:
+- Fixture recorder: sanitized HAR/DOM snapshots per adapter (no cookies,
+  no user content beyond public samples) + replay in Playwright.
+- Adapter health dashboard (test-results + docs): per platform, last pass
+  date, failure mode, whether login-walled, and current fixture coverage.
+- Live matrix (logged-out public pages only) run manually on a schedule;
+  blocked is recorded as blocked, never as pass.
+- Canary fixtures for top selectors (pin/article/feed roots) so a platform
+  redesign shows up as a failing fixture, not a silent user regression.
+
+Expansion order (only when fixtures exist):
+1. Harden Instagram/X/Facebook/Pinterest current adapters + fixtures.
+2. TikTok (public video posters), Reddit (gallery posts), LinkedIn public
+   posts, Bluesky/Mastodon public pages, Tumblr.
+3. Behance/Dribbble/ArtStation/DeviantArt/Flickr/500px/Pixiv/Weibo (public
+   galleries), YouTube thumbnails/posters only (no video downloader by
+   default — separate policy decision, see 09).
+Each addition must state its evidence level (fixture vs live vs account).
+
+Policy guardrails (permanent):
+- No account creation, no auto-login, no cookie export, no session replay.
+- No view/like/follow inflation, no comment/DM automation, no bulk profile
+  scraping. This is an image tool, not a growth tool.
+- Respect private content: only what the current browser can already
+  display is collected; no endpoint guessing for higher resolutions beyond
+  documented public CDN transforms.
+
+================================================================================
+08. SCALING ENGINEERING (MEASURED, NOT ASPIRATIONAL)
+================================================================================
+Current hot paths and the fixes to schedule:
+- Content script: 9ms time-sliced inspector; per-shadow-root observers;
+  class/style mutation filters cause re-inspection on animation-heavy
+  pages. Add per-element computed-style memoization keyed by a cheap
+  signature (element + class + style + src). Keep the 9ms budget and the
+  500-node chunks; measure with the existing trace analyzer.
+- resources() runs every 5s and is O(resource entries) forever on infinite
+  feeds. Change to incremental: remember the last PerformanceResourceTiming
+  index and only process new entries. Cap the total retained set.
+- Records map grows on infinite feeds. Add the retention policy from 04E:
+  max N records per collection (default 10k, already scanImages) plus a
+  memory-weighted cap and a visible "collection limit reached" state,
+  instead of silent unbounded growth.
+- DISCOVER batches: already 60/20MB. Add coalescing of UI_STATE by
+  revision (already debounced) and delta DISCOVER (only changed variants),
+  which is the next big message-volume win on 5k-image pages.
+- Offscreen: ZIP builds whole archives in memory (~2x limit). For >250MB
+  sets, prefer multi-part ZIPs (already implemented) and stream each entry
+  as soon as it is converted instead of holding all blobs (reduce peak).
+- IDB: paged reads exist. Add compound indexes only when a new query needs
+  them; keep write batches atomic; run a real-archive migration test for
+  every version bump (as done for v3 and v4).
+- Previews: 2-concurrency queue with cancellation and owned blob URLs.
+  Keep the 512px preview cap; add a small LRU memory cache for preview
+  blobs so revisiting tiles doesn't refetch.
+
+Budgets to enforce in tests (not just prose):
+- Main thread long tasks <100ms during 5k scan (already traced).
+- Memory: offscreen peak <2x archive cap; content script retained maps
+  bounded by retention policy.
+- First dock appearance after activation <1s on fixture; first gallery
+  paint <2s for 1k records; scan throughput >=1k records/second on fixture.
+
+================================================================================
+09. DATA LIFECYCLE, PRIVACY, SECURITY AND LEGAL POSTURE
+================================================================================
+Data lifecycle (write this down for users too):
+- Settings/dock layouts: chrome.storage.local (persistent).
+- Activation/collection epoch/gallery tabs: chrome.storage.session.
+- Records/jobs/collections/albums/tags/fingerprints: IndexedDB v4.
+  Collections are session-scoped unless pinned. Albums are durable.
+- Normal network images are NOT cached permanently as extra copies;
+  inline/data captures may include bytes locally. Downloads go to the
+  user's chosen folder; extension data can be erased by clearing site
+  data or uninstalling. Retention/eviction rules from 08 apply.
+- Diagnostics export (G5) must redact full URLs (keep hostname only),
+  cookies, local file paths, usernames and any image content.
+
+Security work items:
+- Threat model doc: credentialed privileged fetch, host_permissions, page
+  byte fallback, content-script trust, offscreen sender gate, blob URLs.
+  Review against: can a malicious page cause cookie-bearing requests to a
+  third party? Current mitigations (registered variants only, safeUrl,
+  per-tab/collection scoping, rate limits) stay; new variants get the same
+  review. Re-check after every retrieval change.
+- No remote code, no eval, strict CSP (unchanged). Dependencies pinned;
+  add SBOM + provenance checks to CI. Dependabot PRs reviewed like code.
+- Releases: keep SHA-256 verification; add signed tags when convenient.
+- No remote AI weights without integrity pinning (hash of model files)
+  and a clear download disclosure (size, source, offline-afterward).
+
+Legal/policy (get a real review before store listing and before new sites):
+- Copyright: downloading publicly viewable images for personal use is
+  generally the user's own action, but the tool must not encourage
+  infringement, DRM circumvention, or bulk redistribution. Keep the
+  "personal collection" framing; no rehosting/sharing features by default.
+- Platform ToS: some platforms restrict automated access even of public
+  pages. The on-demand, user-initiated, browser-access-only design is the
+  safest posture; do not add headless/API scraping of private endpoints.
+- Video: a separate policy decision. YouTube and similar services have
+  explicit download restrictions in many cases. Default to posters/frames
+  only unless the legal review says otherwise. Do not ship a generic
+  video downloader by default.
+- Privacy laws: no biometric identification (see 06), no sensitive
+  attribute inference, minimal data by default, local-only processing,
+  clear retention and deletion controls. GDPR/CCPA-friendly by design,
+  but still document it in the store privacy disclosures.
+- Content safety: no tools intended for illicit content; respect age
+  gates and private spaces; do not bypass them.
+
+================================================================================
+10. DISTRIBUTION: STORE, WEBSITE v1, DOCS, SUPPORT
+================================================================================
+Chrome Web Store (the real distribution unlock):
+- Prepare: store listing copy (what/why/privacy), 5 screenshots + short
+  demo video, icons, category, MV3 privacy disclosures (host permissions
+  justification: "collect and download images on user-activated sites"),
+  data-handling answers (no collection off device), support URL, version
+  notes, staged rollout plan (start 10-25% if offered) and rollback plan.
+- Review risks: broad host permissions and all_frames content scripts get
+  scrutiny; the activation-first model and the no-server story are the
+  strongest answers. Have the permissions section of README mirror the
+  store disclosure exactly.
+- Keep zip+verify pipeline as the release source of truth; the store
+  package is the same dist (no store-only code paths).
+
+Website v1 (docs/marketing only, no app backend):
+- Static site (GitHub Pages is enough): overview, install guide, feature
+  pages with real screenshots, compatibility matrix, privacy promise,
+  troubleshooting runbook, changelog, download zip link, and a link to
+  GitHub. This is also the support URL for the store listing.
+- Website v1 has no accounts and no app. Its job is trust + onboarding.
+
+Support runbook (publish it):
+- "No dock after click": restricted page vs receiver injection failure;
+  retry, refresh, site access guidance (already partly in troubleshoot).
+- "Original fails but preview works": signed URL expiry/hotlink rules;
+  refresh same post, or original browser download path.
+- "Stories unavailable": consent + opt-in + tray boundary limits.
+- "Nothing on site X": adapter evidence level and generic fallback;
+  never claim universal support.
+- "ZIP too big": 250MB/100-file split rules and what to do instead.
+- "Worker restarted": durable jobs and sequence behavior.
+
+================================================================================
+11. WHEN A BACKEND BECOMES NECESSARY (AND WHEN IT IS A MISTAKE)
+================================================================================
+Do NOT build a backend for: AI inference, duplicate hashing, "faster"
+downloads, analytics, or to look like a modern product. Those are local
+by design and better that way (privacy, cost, reliability, offline).
+
+A backend becomes justified only when at least one of these triggers is
+true AND user-owned alternatives (13) are insufficient:
+T1. Multi-device continuity is a top user request: same albums, tags,
+    preferences and (recomputable) fingerprints across a user's own
+    machines, with conflict handling. Requires sync, which requires a
+    host or a user-provided sync endpoint.
+T2. Shared/team collections: multiple people curating the same album
+    with permissions. This is a different product surface and needs
+    accounts/ACLs, not just a file host.
+T3. A paid tier needs license management (not paywalling the local core).
+    This requires a small entitlement service, not an AI backend.
+T4. Model distribution at scale: hosting signed, versioned model weights
+    and update manifests if the user base makes public CDN hosting
+    unreliable or expensive. (Start with a static CDN, not a server.)
+
+What the backend should be if T1/T3 fires:
+- Boring: a small API (sync + entitlement) with per-user namespacing,
+  append-only change log for albums/tags, LWW for preferences, E2EE
+  optional for sensitive content, and export/delete guarantees. It never
+  sees raw image bytes by default (URLs + derived data only).
+- SLOs: availability target, backup/restore drills, data residency note,
+  cost per active user measured before any team-scale promises.
+- The local product works fully without it (offline-first), so backend
+  downtime never breaks downloading or the gallery.
+
+================================================================================
+12. PREMIUM WEBSITE + MONETIZATION: TIMING AND SHAPE
+================================================================================
+Timing gates (all must hold before charging anyone):
+- Store listing live with real install base and a support channel.
+- The free core is complete and trusted (no "pay to fix the basics").
+- A paid capability exists that users actually ask for (sync/teams/
+  advanced local-AI packs/automation recipes/CLI+API), not a paywall on
+  downloads, privacy, or basic selection.
+
+What can be paid (examples, compatible with the thesis):
+- Multi-device sync of albums/tags/settings (user's own data, E2EE option).
+- Team albums with roles (view/curate/download) and audit history.
+- Advanced local AI packs (larger/better models, OCR, quality scoring)
+  distributed with integrity pinning and offline use after download.
+- Power-user CLI/API for scripted exports from local collections.
+- Priority adapter updates for fast-changing platforms (support, not a
+  capability gate).
+
+What is NEVER charged for:
+- Downloading originals/ZIPs, conversion, selection, local privacy, the
+  no-telemetry stance, accessibility, or security fixes.
+- "AI" as a label without a measurable capability. Paid features must
+  remove repeated user actions, same anti-slop test as everything else.
+
+Website v2 (when monetization exists): adds docs for the paid feature,
+  pricing, account/entitlement management (if T3), and status page. Still
+  no need to move the product's core compute to the server.
+
+================================================================================
+13. OPTIONAL SYNC: USER-OWNED BACKENDS BEFORE OUR OWN
+================================================================================
+Before building any sync service, support user-owned options:
+- Export/import of albums/tags/settings as a versioned JSON bundle
+  (already planned G5) with explicit URL-expiry and bytes-omission notes.
+- WebDAV or S3-compatible user endpoints (Nextcloud, Drive via rclone,
+  S3/MinIO). The extension writes the bundle + a small op log; conflicts
+  resolved by per-entity LWW for settings and per-album union for members
+  with deterministic ordering and a sync preview (never silent overwrite).
+- Device pairing without accounts is possible via manual bundle exchange;
+  do not add WebRTC complexity until users prove they need it.
+
+Only build the hosted sync service (11) if these options are used and
+still produce support burden or demand for a zero-config experience.
+
+================================================================================
+14. TEAM/PROCESS: CI, RELEASE ENGINEERING, REVIEW, MIGRATIONS
+================================================================================
+- CI is the first fix: unblock Actions or run the same jobs elsewhere.
+  Required checks on every PR: strict build, lint ratchet (never rises),
+  unit tests, coverage ratchet, core+dock+power+audit browser suites,
+  packaging + verify, and the new a11y suite once added.
+- Pre-commit stays: prettier + eslint on staged files. Conventional
+  commits; every release gets CHANGELOG + VALIDATION + tag + zip hash.
+- Migration discipline: every schema change has a real-archive migration
+  test (like v3/v4) and an explicit downgrade note. Never destructive
+  migrations without a backfill path and a rollback story.
+- Feature flags for risky tracks (AI, video, new adapters) so a bad
+  rollout can be disabled without shipping a revert.
+- Review checklist per PR: invariants intact (blob lifetime, per-host
+  serialization, epoch rules, TOCTOU), input validation, accessibility,
+  tests added for behavior change, docs updated (protocol/ADRs/VALIDATION),
+  no new permissions without justification, no telemetry.
+- Support: error categories with user fixes, plus a sanitized diagnostics
+  export so users can share useful reports without leaking private URLs.
+
+================================================================================
+15. METRICS THAT MATTER
+================================================================================
+North-star: successful original-download rate for user-selected images
+  (by retrieval trace outcome), because that is the product's job.
+Guardrails (each has a test or a recorded measurement):
+- Crash-free recovery: jobs resume after worker kill with no duplicate
+  files and no sequence reuse (invariant suite, already green).
+- Scan performance: no repeated >100ms main-thread tasks on 5k fixture;
+  first-dock latency; gallery paint time for 1k records.
+- Memory: offscreen peak bounded; records map bounded by retention.
+- Protocol safety: zero unregistered message types (compile-time gate).
+- Privacy: zero telemetry endpoints in built bundle (checked in CI),
+  zero new permissions without a written reason.
+- Adapter health: fixture pass rate and time-to-fix after a redesign.
+- Release quality: every tag has a VALIDATION doc and a verified zip.
+Do not add vanity metrics (DAU, time-on-site, engagement). They would
+push the product toward slop.
+
+================================================================================
+16. RISK REGISTER (WITH MITIGATIONS)
+================================================================================
+R1. Platform redesigns break adapters (high likelihood, medium impact).
+    M: adapter SDK + fixtures + health dashboard + generic fallback.
+R2. GitHub Actions stays disabled (medium likelihood, high process risk).
+    M: run CI on a self-hosted runner or another host; local gate parity.
+R3. Broad permissions slow/reject store review (medium, high impact).
+    M: activation-first docs, exact store disclosures, minimal new perms,
+    staged rollout, screenshots of the activation model.
+R4. AI features look like slop and erode trust (medium, high impact).
+    M: opt-in only, local only, labeled basis, no auto actions, undo,
+    feature flag, and cut anything that fails the repeated-action test.
+R5. Signed URLs/anti-hotlink make "original" unreliable (always, medium).
+    M: native-download-first, refresh same-post, honest traces and docs;
+    never claim reconstruction of unavailable originals.
+R6. Memory growth on infinite feeds (medium, medium).
+    M: retention policy + incremental resource timing + delta discovery.
+R7. Legal/ToS challenges for social/video collection (low-medium, high).
+    M: on-demand only, browser-access-only, no private endpoints, legal
+    review before store and before any video feature; posters by default.
+R8. Backend temptation turns into a data liability (low, high).
+    M: user-owned sync first; if hosted, no image bytes by default,
+    E2EE option, export/delete guarantees, offline-first requirement.
+R9. Schema migration strands a user on a broken profile (low, high).
+    M: real-archive migration tests, idempotent upgrades, no destructive
+    migrations without rollback notes.
+R10. Motion/3D polish hurts accessibility or battery (medium, low).
+    M: reduced-motion parity, transform-only animation, frame budget,
+    no continuous 3D scenes; cut any effect that misses the budget.
+
+================================================================================
+17. PHASED ROADMAP WITH GATES (v1.10 → v4.0)
+================================================================================
+Gate G0 (now): executable CI or documented alternate runner; v1.9.0 live.
+
+v1.10 (maintenance + video/motion, small):
+- Video posters + frame discovery (consent-gated), animated WebP/AVIF
+  awareness (extend first-frame signature machinery), Motion bucket.
+- resources() incremental resource timing; retention policy for records.
+- Docs: support runbook + shortcuts overlay. Tests for the new paths.
+Gate: suites green incl. new motion fixtures; no new permissions.
+
+v1.11 (protocol v2 + module split + adapter SDK):
+- background module split, typed request/response registry + generated
+  docs, adapter SDK with fixtures for current 4 platforms, adapter health
+  dashboard. UI shared component library part 1 (ImageGrid/FilterBar).
+Gate: migration tests real archives; adapter fixtures pass; no behavior
+  regressions in existing suites.
+
+v1.12 (local AI track C, opt-in):
+- Offscreen embedding/classification (WebGPU + WASM fallback), model
+  download disclosure + integrity pinning + cache, semantic search and
+  filter chips in gallery, failure/degradation states, feature flag.
+- UI component tests + axe accessibility suite in CI.
+Gate: performance budget met on WASM; offline fixtures; no network after
+  model download; privacy doc updated; flag can disable cleanly.
+
+v2.0 (design system + UI redesign):
+- Shared components everywhere (panel/gallery/options), command palette
+  with shortcuts overlay, drag-rectangle select, masonry option, motion
+  tokens with reduced-motion parity, density scales, forced-colors audit.
+- Export/import settings + sanitized diagnostics bundle.
+Gate: a11y suite zero critical violations; six palettes + auto dark;
+  motion never blocks work; browser suites updated and green.
+
+v2.1 (distribution):
+- Website v1 (static docs), store listing package, privacy disclosures,
+  screenshots/demo, staged rollout + rollback plan, support runbook live.
+Gate: store review approved; support channels staffed; no store-only
+  code paths.
+
+v2.2 (user-owned sync):
+- Versioned export bundles + WebDAV/S3-compatible user endpoints, sync
+  preview and deterministic conflict rules; no hosted accounts yet.
+Gate: offline-first guaranteed; no hosted backend required; round-trip
+  tests across two simulated profiles.
+
+v3.0 (only if T1/T3 triggers fire):
+- Small hosted sync/entitlement service with append-only change log,
+  no image bytes by default, E2EE option, export/delete, SLOs, backups.
+- Paid tier only for capabilities users asked for (sync/teams/AI packs/
+  CLI), never for the free core or privacy.
+Gate: measured demand + legal/privacy review + cost model + offline-
+  first proof. If triggers never fire, v3.0 does not happen, and that
+  is a successful outcome too.
+
+v4.0 (platform/teams, only on evidence): shared albums with roles and
+  audit history. Do not start before v3.0 is stable and demanded.
+
+================================================================================
+18. DECISION LOG (QUESTIONS NOT ASKED, ANSWERED ANYWAY)
+================================================================================
+Q: Should we rewrite in a faster language/worker pool?
+A: No. Bottlenecks are DOM observation and message volume, not compute.
+   Measure first; keep offscreen/WASM for heavy work.
+
+Q: Should the extension auto-collect on every site by default?
+A: Never. Activation-first is the privacy story and the performance
+   story. Keep it.
+
+Q: Should we support Firefox/Safari now?
+A: No. Chrome-only was the right call (offscreen + sidePanel differences).
+   Revisit only when the product is stable and the porting cost is known.
+
+Q: Should we add accounts to unlock "advanced" features?
+A: Only for sync/team entitlements (T1/T3). Never for core features.
+
+Q: Should AI run on a server for better models?
+A: No by default. Local models first; BYOK optional for power users with
+   explicit disclosure. Server inference breaks the privacy thesis.
+
+Q: Should we let users share albums publicly?
+A: Not before a real ACL/audit model exists. Private-by-default sharing
+   via export bundles is enough until then.
+
+Q: Should the gallery become a full photo manager (editing, RAW, video)?
+A: No scope creep. Organize + export is enough. Editing is another product.
+
+Q: Should we show "smart" recommendations or engagement features?
+A: No. That is slop. The gallery is a tool, not a feed.
+
+Q: Do we need a design agency/3D redesign now?
+A: No. Motion tokens and measured micro-interactions only. A flashy 3D
+   redesign would violate performance and accessibility budgets.
+
+Q: What if the store rejects broad host permissions?
+A: Document the activation model and offer optional host permissions
+   (site access on demand) as the fallback path; keep functionality for
+   activated sites only.
+
+Q: What if users ask for a downloader for paid/private content?
+A: Out of scope. No login-wall bypass, no DRM circumvention, ever.
+
+Q: What if AI features are requested by users but hardware is weak?
+A: Ship the small WASM fallback and degrade gracefully; never require
+   WebGPU. AI is optional everywhere.
+
+Q: How do we keep the project sustainable with a tiny team?
+A: Executable CI, small releases, invariant tests, adapter fixtures,
+   and refusing features that don't remove repeated user actions.
+
+================================================================================
+19. APPENDIX: CHECKLISTS FOR THE NEXT THREE MILESTONES
+================================================================================
+Milestone A — v1.10 (video/motion + retention):
+[ ] Video poster/frame discovery with consent gate and Motion bucket
+[ ] Animated WebP/AVIF signature awareness with tests
+[ ] resources() incremental (no O(all entries) rescans)
+[ ] Retention policy (count + memory) with visible limit state
+[ ] Support runbook + shortcuts overlay
+[ ] Full suite green + VALIDATION doc + zip verify + tag
+
+Milestone B — v1.11 (protocol v2 + split + adapter SDK):
+[ ] background module split with unchanged behavior
+[ ] Typed request/response registry + generated protocol docs
+[ ] Adapter table + fixtures for IG/FB/X/Pinterest + health dashboard
+[ ] Shared ImageGrid/FilterBar in panel and gallery
+[ ] Migration tests with real archives; adapter fixtures green
+
+Milestone C — v1.12 (local AI):
+[ ] Opt-in model download (size, source, hash, offline-afterward)
+[ ] WebGPU path + WASM fallback with performance measurement
+[ ] Embedding cache with model-version invalidation
+[ ] Semantic search + filter chips with failure states
+[ ] Feature flag off by default; disabling leaves the product intact
+[ ] UI component tests + axe a11y suite wired into CI
+[ ] Privacy docs updated; no telemetry endpoints in bundle (CI check)
+
+Final rule for every future session: if a proposed change contradicts the
+invariants in section 01, the change is wrong, not the invariants. When
+in doubt, do less, better.
+================================================================================
