@@ -1,3 +1,27 @@
+# Zephyer 1.9.0
+
+- Pin any collection to keep it permanently: pinned collections survive
+  browser restarts, detach as saved instead of being deleted, and keep
+  serving gallery commands across sessions. Toggle the pin in the gallery's
+  collection context bar.
+- Duplicate review: the gallery's Duplicates segment groups exact byte
+  duplicates (SHA-256) and visually similar images (dHash proximity) with
+  thumbnails, per-image selection and Select-group actions. Everything is
+  computed locally — no merges or deletions happen automatically.
+- IndexedDB v4 adds albums, tags and fingerprints stores; the offscreen
+  processor gains DIGEST and PHASH operations. Upgrading the existing
+  profile is automatic; stay on 1.9.0 or newer afterwards (downgrading to
+  an older schema is unsupported).
+- Site profiles: per-hostname overrides for formats, cleanup flags, minimum
+  image size, download folder and scan limit. Edit them in Preferences →
+  Site profiles; only overridden fields are stored.
+- Naming presets: a token template ({index}, {hostname}, {date}, {title})
+  with live example filenames, applied per download and snapshotted per job
+  like the other destination settings.
+- No new permissions, backend, analytics or remote assets. The planned
+  local-AI filtering and video/motion tracks are deferred to a later
+  release (see ROADMAP.md) and are not part of 1.9.0.
+
 # Zephyer 1.8.0
 
 - Hardened the background service worker: all per-tab state now lives in a
