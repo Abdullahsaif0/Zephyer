@@ -108,6 +108,8 @@ describe("message protocol", () => {
     const offscreenDirectives = new Set([
       "IMAGE",
       "PROBE",
+      "DIGEST",
+      "PHASH",
       "REVOKE",
       "CANCEL",
       "CLEANUP",

@@ -1,4 +1,4 @@
-import type { ImageRecord, DownloadJob, Collection } from "./shared";
+import type { ImageRecord, DownloadJob, Collection, Album, TagIndex, Fingerprint } from "./shared";
 let connection: Promise<IDBDatabase>;
 /** DOMException is an Error at runtime but not in the IDB typings; wrapping
  *  keeps Promise rejection reasons uniformly Error instances. */
@@ -6,7 +6,7 @@ const reason = (e: unknown) =>
   e instanceof Error ? e : Error(String(e));
 function db() {
   return (connection ??= new Promise((resolve, reject) => {
-    const r = indexedDB.open("zephyer", 3);
+    const r = indexedDB.open("zephyer", 4);
     r.onupgradeneeded = () => {
       const d = r.result;
       if (!d.objectStoreNames.contains("records"))
@@ -18,6 +18,15 @@ function db() {
         d.createObjectStore("jobs", { keyPath: "id" });
       if (!d.objectStoreNames.contains("collections"))
         d.createObjectStore("collections", { keyPath: "id" });
+      if (!d.objectStoreNames.contains("albums"))
+        d.createObjectStore("albums", { keyPath: "id" }).createIndex(
+          "created",
+          "created",
+        );
+      if (!d.objectStoreNames.contains("tags"))
+        d.createObjectStore("tags", { keyPath: "recordId" });
+      if (!d.objectStoreNames.contains("fingerprints"))
+        d.createObjectStore("fingerprints", { keyPath: "recordId" });
       const records = r.transaction!.objectStore("records");
       if (!records.indexNames.contains("collectionId"))
         records.createIndex("collectionId", "collectionId");
@@ -221,6 +230,115 @@ export async function deleteRecords(ids: string[]) {
   return new Promise<void>((resolve, reject) => {
     const tx = d.transaction("records", "readwrite");
     for (const id of ids) tx.objectStore("records").delete(id);
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
+  });
+}
+
+/* ---- IndexedDB v4: albums, fingerprints, tags ---- */
+
+export async function getAlbums(): Promise<Album[]> {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const r = d.transaction("albums").objectStore("albums").getAll();
+    r.onsuccess = () => { resolve(r.result); };
+    r.onerror = () => { reject(reason(r.error)); };
+  });
+}
+export async function getAlbum(id: string): Promise<Album | undefined> {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const r = d.transaction("albums").objectStore("albums").get(id);
+    r.onsuccess = () => { resolve(r.result); };
+    r.onerror = () => { reject(reason(r.error)); };
+  });
+}
+export async function putAlbums(albums: Album[]) {
+  const d = await db();
+  return new Promise<void>((resolve, reject) => {
+    const tx = d.transaction("albums", "readwrite");
+    for (const album of albums) tx.objectStore("albums").put(album);
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
+  });
+}
+export async function deleteAlbums(ids: string[]) {
+  const d = await db();
+  return new Promise<void>((resolve, reject) => {
+    const tx = d.transaction("albums", "readwrite");
+    for (const id of ids) tx.objectStore("albums").delete(id);
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
+  });
+}
+export async function getFingerprints(
+  recordIds?: string[],
+): Promise<Fingerprint[]> {
+  const d = await db();
+  if (!recordIds) {
+    return new Promise((resolve, reject) => {
+      const r = d.transaction("fingerprints").objectStore("fingerprints").getAll();
+      r.onsuccess = () => { resolve(r.result); };
+      r.onerror = () => { reject(reason(r.error)); };
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("fingerprints"),
+      store = tx.objectStore("fingerprints");
+    const values: Fingerprint[] = [];
+    for (const id of recordIds) {
+      const request = store.get(id);
+      request.onsuccess = () => {
+        if (request.result) values.push(request.result);
+      };
+    }
+    tx.oncomplete = () => { resolve(values); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
+  });
+}
+export async function putFingerprints(prints: Fingerprint[]) {
+  const d = await db();
+  return new Promise<void>((resolve, reject) => {
+    const tx = d.transaction("fingerprints", "readwrite");
+    for (const p of prints) tx.objectStore("fingerprints").put(p);
+    tx.oncomplete = () => { resolve(); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
+  });
+}
+export async function getTags(recordIds?: string[]): Promise<TagIndex[]> {
+  const d = await db();
+  if (!recordIds) {
+    return new Promise((resolve, reject) => {
+      const r = d.transaction("tags").objectStore("tags").getAll();
+      r.onsuccess = () => { resolve(r.result); };
+      r.onerror = () => { reject(reason(r.error)); };
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction("tags"),
+      store = tx.objectStore("tags");
+    const values: TagIndex[] = [];
+    for (const id of recordIds) {
+      const request = store.get(id);
+      request.onsuccess = () => {
+        if (request.result) values.push(request.result);
+      };
+    }
+    tx.oncomplete = () => { resolve(values); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
+  });
+}
+export async function putTags(tags: TagIndex[]) {
+  const d = await db();
+  return new Promise<void>((resolve, reject) => {
+    const tx = d.transaction("tags", "readwrite");
+    for (const t of tags) tx.objectStore("tags").put(t);
     tx.oncomplete = () => { resolve(); };
     tx.onerror = () => { reject(reason(tx.error)); };
     tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };

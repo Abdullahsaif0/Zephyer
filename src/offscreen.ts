@@ -72,6 +72,35 @@ async function decode(blob: Blob): Promise<{
     }
   }
 }
+/**
+ * Perceptual hash (dHash): resize to 9×8 grayscale and compare each pixel
+ * with its right neighbour, producing a 64-bit string. Hamming distance
+ * between two phashes approximates visual similarity.
+ */
+function dHash(bitmap: {
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+}): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 9;
+  canvas.height = 8;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw Error("Canvas unavailable");
+  ctx.drawImage(bitmap.source, 0, 0, 9, 8);
+  const data = ctx.getImageData(0, 0, 9, 8).data;
+  const at = (o: number) => data[o] ?? 0;
+  let bits = "";
+  for (let y = 0; y < 8; y++)
+    for (let x = 0; x < 8; x++) {
+      const i = (y * 9 + x) * 4;
+      const j = (y * 9 + x + 1) * 4;
+      const left = at(i) * 0.299 + at(i + 1) * 0.587 + at(i + 2) * 0.114;
+      const right = at(j) * 0.299 + at(j + 1) * 0.587 + at(j + 2) * 0.114;
+      bits += left > right ? "1" : "0";
+    }
+  return parseInt(bits, 2).toString(16).padStart(16, "0");
+}
 async function image(
   url: string,
   o: Output,
@@ -230,6 +259,24 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
         };
         bitmap.close();
         return info;
+      }
+      case "DIGEST": {
+        const b = await bytes(m.url);
+        const digest = await crypto.subtle.digest("SHA-256", await b.arrayBuffer());
+        const hex = [...new Uint8Array(digest)]
+          .map((x) => x.toString(16).padStart(2, "0"))
+          .join("");
+        return { sha256: hex };
+      }
+      case "PHASH": {
+        const b = await bytes(m.url);
+        const bitmap = await decode(b);
+        try {
+          const hash = dHash(bitmap);
+          return { phash: hash };
+        } finally {
+          bitmap.close();
+        }
       }
       case "REVOKE":
         revoke(m.url);

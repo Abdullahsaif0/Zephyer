@@ -195,7 +195,7 @@ try {
           };
         }),
     );
-    assert.equal(version, 3);
+    assert.equal(version, 4);
   });
   await test("a migrated collection opens in Photos with its original selection", async () => {
     await worker.evaluate(

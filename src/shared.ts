@@ -72,9 +72,30 @@ export type Collection = {
   url: string;
   title: string;
   state: "live" | "detached";
+  pinned?: boolean | undefined;
   revision: number;
   nextOrder: number;
   scan?: ScanSession | undefined;
+};
+/** A user-created album: an ordered set of record ids with a display name. */
+export type Album = {
+  id: string;
+  name: string;
+  createdAt: number;
+  recordIds: string[];
+  revision: number;
+};
+/** Per-record duplicate-detection and local-AI state (IndexedDB v4). */
+export type Fingerprint = {
+  recordId: string;
+  sha256?: string | undefined;
+  phash?: string | undefined;
+  failed?: string | undefined;
+  updated: number;
+};
+export type TagIndex = {
+  recordId: string;
+  tags: string[];
 };
 export type ImageRecord = {
   media?: MediaContext | undefined;

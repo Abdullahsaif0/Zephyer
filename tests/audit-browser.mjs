@@ -366,7 +366,7 @@ try {
       const { collectionEpoch: epoch } =
         await chrome.storage.session.get("collectionEpoch");
       const db = await new Promise((resolve, reject) => {
-        const r = indexedDB.open("zephyer", 3);
+        const r = indexedDB.open("zephyer");
         r.onsuccess = () => resolve(r.result);
         r.onerror = () => reject(r.error);
       });
