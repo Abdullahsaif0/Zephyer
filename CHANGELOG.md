@@ -1,3 +1,40 @@
+# Zephyer 1.8.0
+
+- Hardened the background service worker: all per-tab state now lives in a
+  single typed map with one cleanup path (releaseTab), eliminating the
+  class of bugs where tab-close cleanup missed one of eight hand-synchronized
+  registries.
+- Retry/error classification is now structural: DownloadFailure carries a
+  kind (permanent / rate-limited / cancelled / transient), and the queue
+  branches on it — not on message text. The Chromium download-error string
+  fallback survives only in one documented place.
+- The message protocol has a typed sender-role registry (protocolRegistry):
+  every message declares whether the extension page, content script, or both
+  may send it, enforced at compile time and consulted by the background
+  router for authorization.
+- Strict TypeScript: noUncheckedIndexedAccess, exactOptionalPropertyTypes,
+  noPropertyAccessFromIndexSignature and three more flags are on; all
+  surfaced latent unguarded accesses and optional-field contract decisions
+  were fixed.
+- Image probes now sniff dimensions from 4 KB container headers (PNG, GIF,
+  JPEG SOF, WebP VP8X/VP8/VP8L, BMP, ICO) instead of downloading whole files
+  to decode them — best-quality candidates on common formats resolve sizes
+  for free.
+- Fixed: panel "Discovered" sort now matches the gallery (discovery
+  sequence, not update time); a stale per-variant quality choice can no
+  longer render a blank select or leak into the next download; the
+  unreachable OPEN router case was removed; DISCOVER no longer risks a raw
+  URL-parse throw on a missing tab URL; recovery alarm re-creates itself on
+  startup and checks its name; scan-recovery writes are debounced on the
+  progress hot path and flushed immediately on terminal states.
+- Engineering: ESLint strict type-checked with import-boundary rules
+  (0 errors, warning ratchet), coverage ratchet on pure modules, property-
+  based tests for the hostile-input parsers, message-protocol exhaustiveness
+  tests, per-host queue serialization and sequence-monotonicity invariants,
+  and GitHub Actions CI workflows (pending account-level Actions re-enable).
+- No new permissions, backend, analytics or remote assets. Upgrade by
+  reloading the extension card and refreshing open websites.
+
 # Zephyer 1.7.0
 
 - Added acknowledged, serialized toolbar activation with missing-receiver injection, document-change retry, bounded handshakes and local troubleshooting/badge errors. Content generations own/dispose their observers, global listeners and timers; the dock uses a nonmodal top layer with fixed-overlay fallback.
