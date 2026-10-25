@@ -61,6 +61,16 @@ const _precise: readonly Message["type"][] = messageTypes;
 expect(_exhaustive).toBe(true);
 expect(_precise.length).toBe(messageTypes.length);
 
+// The protocol registry must cover every member and nothing more.
+import type { protocolRegistry } from "../src/shared";
+type RegistryKeys = keyof typeof protocolRegistry;
+type MissingRegistry = Exclude<Message["type"], RegistryKeys>;
+type ExtraRegistry = Exclude<RegistryKeys, Message["type"]>;
+const _registryExhaustive: MissingRegistry extends never ? true : never = true;
+const _registryPrecise: ExtraRegistry extends never ? true : never = true;
+expect(_registryExhaustive).toBe(true);
+expect(_registryPrecise).toBe(true);
+
 /**
  * Messages the background does not route to a `case` of its own: broadcast
  * pushes it originates, probes it sends into content scripts, and OPEN which

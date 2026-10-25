@@ -364,6 +364,60 @@ export type Message =
       settings: Settings;
     };
 /**
+ * Typed protocol registry. `Message` above is the wire union; this table
+ * declares, per message type, which sender role may send it. The registry is
+ * the single source of truth for authorization — the background router reads
+ * it at startup (senderRole), and the protocol exhaustive test verifies the
+ * table matches the actual Message members exactly.
+ */
+export type SenderRole = "ui" | "content" | "any";
+export const protocolRegistry = {
+  ENABLE_PHOTO_FORMATS: "ui",
+  PING: "any",
+  ACTIVATION_STATUS: "ui",
+  ACTIVATION_RETRY: "ui",
+  CAPABILITIES: "content",
+  VERIFY_RETRY: "ui",
+  OPEN_GALLERY: "any",
+  AUTO_COLLECTION: "ui",
+  SCAN_NOW: "any",
+  COLLECTION_META: "ui",
+  COLLECTION_BATCH: "ui",
+  COLLECTION_SELECT: "ui",
+  COLLECTION_INCLUDE: "ui",
+  COLLECTION_DOWNLOAD: "ui",
+  COLLECTION_PREVIEW: "ui",
+  PREVIEW_RELEASE: "ui",
+  PREVIEW_CANCEL: "ui",
+  PREFERENCES: "ui",
+  SITE_POWER: "any",
+  INCLUDE: "ui",
+  HELLO: "content",
+  APPEARANCE: "ui",
+  DOCK_GET: "any",
+  DOCK_SAVE: "any",
+  DOCK_RESET: "any",
+  OPEN_OPTIONS: "content",
+  DISCOVER: "content",
+  SNAPSHOT: "ui",
+  LIBRARY_META: "ui",
+  RECORDS_BATCH: "ui",
+  SELECT: "any",
+  MODE: "any",
+  SCAN: "any",
+  SCAN_PROGRESS: "content",
+  DOWNLOAD: "any",
+  JOB: "ui",
+  OPEN: "ui",
+  SETTINGS: "ui",
+  PAGE_BYTES: "any",
+  NOTICE: "any",
+  RESET: "any",
+  UI_STATE: "any",
+} as const satisfies Record<Message["type"], SenderRole>;
+export const senderRole = (type: string): SenderRole | undefined =>
+  protocolRegistry[type as Message["type"]];
+/**
  * Structured download-pipeline failures. Retry logic must branch on `kind`
  * (failureKind / permanentFailure / userCancelled), never on message text —
  * string matching is only permitted inside failureKind as the fallback for

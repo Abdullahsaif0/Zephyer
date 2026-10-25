@@ -38,6 +38,7 @@ import {
   failureKind,
   permanentFailure as sharedPermanentFailure,
   userCancelled as sharedUserCancelled,
+  senderRole,
   type DownloadJob,
   type Collection,
   type ImageRecord,
@@ -1547,6 +1548,12 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
   (async () => {
     await recover();
     const ui = trusted(s);
+    const role = senderRole(String(m.type));
+    // Table-driven sender authorization; per-method refinements (frameId,
+    // origin checks) still live in the individual handlers.
+    if (role === "ui" && !ui)
+      throw Error("This command requires the Zephyer extension page");
+    if (role === "content" && ui) throw Error("Content handshake required");
     let tabId = ui ? m.tabId : s.tab?.id;
     let targetCollection: Collection | undefined;
     if (String(m.type).startsWith("COLLECTION_")) {
