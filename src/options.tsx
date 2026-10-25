@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { defaults, rpc, type Settings } from "./shared";
+import { defaults, rpc, expandPreset, type Settings } from "./shared";
 import { themes, themeIds, applyTheme } from "./appearance";
 import { Icon, useAppearance } from "./appearance-react";
 import "./ui.css";
@@ -13,6 +13,11 @@ function Options() {
     [notice, setNotice] = useState(""),
     [sites, setSites] = useState("");
   const [nextSequence, setNextSequence] = useState(1);
+  const [profileHost, setProfileHost] = useState("");
+  const [profileFormats, setProfileFormats] = useState("");
+  const [profileCleanup, setProfileCleanup] = useState(true);
+  const [profileMin, setProfileMin] = useState(96);
+  const [profileFolder, setProfileFolder] = useState("");
   const sitesBase = useRef<string[]>([]);
   const dirty = useRef(new Set<keyof Settings>()),
     versions = useRef(new Map<keyof Settings, number>());
@@ -52,6 +57,47 @@ function Options() {
     chrome.storage.onChanged.addListener(listener);
     return () => { chrome.storage.onChanged.removeListener(listener); };
   }, []);
+  function saveProfile() {
+    const hostname = profileHost.trim().toLowerCase();
+    if (!hostname) {
+      setNotice("Enter an exact hostname first.");
+      return;
+    }
+    const profile: Record<string, unknown> = {};
+    const formats = profileFormats
+      .split(/[\s,]+/)
+      .map((f) => f.trim().toLowerCase())
+      .filter(Boolean);
+    if (formats.length) profile["allowedFormats"] = [...new Set(formats)];
+    if (profileCleanup !== defaults.smartCleanup)
+      profile["smartCleanup"] = profileCleanup;
+    if (profileMin !== defaults.minImageSize) profile["minImageSize"] = profileMin;
+    if (profileFolder.trim()) profile["downloadFolder"] = profileFolder.trim();
+    if (!Object.keys(profile).length) {
+      setNotice("Add at least one override, or use Remove for an empty profile.");
+      return;
+    }
+    const next = {
+      ...s,
+      siteProfiles: { ...s.siteProfiles, [hostname]: profile as never },
+    };
+    edit("siteProfiles");
+    setS(next);
+    persist(next, sites, ["siteProfiles"]);
+    setProfileHost("");
+    setProfileFormats("");
+    setProfileFolder("");
+    setNotice(`Profile saved for ${hostname}.`);
+  }
+  function deleteProfile(hostname: string) {
+    const profiles = { ...s.siteProfiles };
+    Reflect.deleteProperty(profiles, hostname);
+    const next = { ...s, siteProfiles: profiles };
+    edit("siteProfiles");
+    setS(next);
+    persist(next, sites, ["siteProfiles"]);
+    setNotice(`Profile removed for ${hostname}.`);
+  }
   function edit(k: keyof Settings) {
     dirty.current.add(k);
     versions.current.set(k, (versions.current.get(k) || 0) + 1);
@@ -249,13 +295,15 @@ function Options() {
         </label>
         <button
           className="secondary reset-layout"
-          onClick={async () => {
-            try {
-              await rpc({ type: "DOCK_RESET", all: true });
-              setNotice("Saved dock positions reset on all websites.");
-            } catch (e) {
-              setNotice(String(e));
-            }
+          onClick={() => {
+            void (async () => {
+              try {
+                await rpc({ type: "DOCK_RESET", all: true });
+                setNotice("Saved dock positions reset on all websites.");
+              } catch (e) {
+                setNotice(String(e));
+              }
+            })();
           }}
         >
           <Icon name="reset" /> Reset saved dock positions
@@ -528,6 +576,61 @@ function Options() {
           numbering.
         </p>
         <label>
+          Naming preset · token template
+          <input
+            aria-label="Naming preset"
+            value={s.namingPreset}
+            aria-invalid={!!errors.namingPreset}
+            aria-describedby={
+              errors.namingPreset ? "error-namingPreset" : undefined
+            }
+            placeholder="{hostname}-{date}-{index}"
+            maxLength={120}
+            onChange={(e) => {
+              edit("namingPreset");
+              setS((s) => ({ ...s, namingPreset: e.target.value }));
+            }}
+            onBlur={() => { persist(s, sites, ["namingPreset"]); }}
+          />
+          {fieldError("namingPreset")}
+        </label>
+        <div className="button-row" role="group" aria-label="Preset shortcuts">
+          {([
+            ["{hostname}-{date}", "Host + date"],
+            ["{index}-{title}", "Number + title"],
+            ["batch-{date}-{index}", "Batch + number"],
+            ["", "Off"],
+          ] as [string, string][]).map(([template, label]) => (
+            <button
+              key={label}
+              onClick={() => {
+                edit("namingPreset");
+                const next = { ...s, namingPreset: template };
+                setS(next);
+                persist(next, sites, ["namingPreset"]);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p>
+          Tokens: <code>{"{index}"}</code>, <code>{"{hostname}"}</code>,{" "}
+          <code>{"{date}"}</code>, <code>{"{title}"}</code>. Example file:{" "}
+          <strong>
+            {s.namingPreset
+              ? expandPreset(s.namingPreset, {
+                  index: nextSequence,
+                  hostname: "photos.example.com",
+                  date: new Date().toISOString().slice(0, 10),
+                  title: "Mountain view",
+                }) + ".jpg"
+              : (s.sequencePrefix ? `${s.sequencePrefix}-` : "") +
+                String(nextSequence).padStart(6, "0") +
+                ".jpg"}
+          </strong>
+        </p>
+        <label>
           Concurrent tasks · 1–8
           <input
             type="number"
@@ -558,6 +661,90 @@ function Options() {
             ? "Some changes need attention. Review the highlighted fields."
             : notice || "Changes save automatically."}
       </p>
+      <section className="settings-section">
+        <h2>Site profiles</h2>
+        <p>
+          Per-hostname overrides. Profiles apply to discovery, downloads and
+          the gallery on that site; everything else follows your global
+          settings. Only overridden fields are stored.
+        </p>
+        {Object.keys(s.siteProfiles).length > 0 && (
+          <ul className="profile-list">
+            {Object.entries(s.siteProfiles).map(([hostname, profile]) => (
+              <li key={hostname}>
+                <div>
+                  <strong>{hostname}</strong>
+                  <small>
+                    {Object.entries(profile as Record<string, unknown>)
+                      .map(([field, value]) =>
+                        field === "allowedFormats"
+                          ? `formats ${Array.isArray(value) ? value.join(",") : ""}`
+                          : `${field} ${String(value)}`,
+                      )
+                      .join(" · ")}
+                  </small>
+                </div>
+                <button
+                  aria-label={`Remove profile for ${hostname}`}
+                  onClick={() => { deleteProfile(hostname); }}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="profile-editor">
+          <label>
+            Hostname
+            <input
+              aria-label="Profile hostname"
+              placeholder="www.example.com"
+              value={profileHost}
+              onChange={(e) => { setProfileHost(e.target.value); }}
+            />
+          </label>
+          <label>
+            Allowed formats · optional
+            <input
+              aria-label="Profile formats"
+              placeholder="jpeg, png, webp"
+              value={profileFormats}
+              onChange={(e) => { setProfileFormats(e.target.value); }}
+            />
+          </label>
+          <label>
+            Min image size (px)
+            <input
+              aria-label="Profile minimum size"
+              type="number"
+              min="0"
+              value={profileMin}
+              onChange={(e) => { setProfileMin(Number(e.target.value) || 0); }}
+            />
+          </label>
+          <label>
+            Download folder · optional
+            <input
+              aria-label="Profile download folder"
+              placeholder="Pictures/example"
+              value={profileFolder}
+              onChange={(e) => { setProfileFolder(e.target.value); }}
+            />
+          </label>
+          <label className="checklabel">
+            <input
+              type="checkbox"
+              checked={profileCleanup}
+              onChange={(e) => { setProfileCleanup(e.target.checked); }}
+            />{" "}
+            Smart cleanup on this site
+          </label>
+          <button className="primary" onClick={() => { saveProfile(); }}>
+            Save profile
+          </button>
+        </div>
+      </section>
       <section className="settings-section">
         <h2>What’s next</h2>
         <label className="checklabel">

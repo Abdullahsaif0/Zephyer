@@ -1358,3 +1358,39 @@ footer button {
   color: var(--z-muted);
   line-height: 1.5;
 }
+
+/* Site profiles editor */
+.profile-list {
+  list-style: none;
+  margin: 8px 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.profile-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--z-line);
+  border-radius: 10px;
+  background: var(--z-surface);
+}
+.profile-list small {
+  display: block;
+  color: var(--z-muted);
+  margin-top: 2px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--z-line);
+  border-radius: 12px;
+  background: var(--z-glass);
+}

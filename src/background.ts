@@ -23,11 +23,13 @@ import {
 import { getCollection, collectionRecords, patchCollection, getFingerprints, putFingerprints } from "./db";
 import { pagePower, mergeSiteRules } from "./power";
 import { groupDuplicates } from "./duplicates";
-import { validHostname, preferenceError } from "./preferences";
+import { validHostname, preferenceError, sanitizeSiteProfiles } from "./preferences";
 import {
   archiveFits,
   defaults,
   defaultOutput,
+  effectiveSettingsFor,
+  expandPreset,
   idleScan,
   mergeVariants,
   MAX_INLINE_URL,
@@ -340,12 +342,23 @@ async function commitSettings(next: Settings) {
       await serialized(`records:${tab.id}`, async () => {});
     }
     await chrome.tabs
-      .sendMessage(tab.id, { type: "POWER_STATE", settings, power })
+      .sendMessage(tab.id, {
+        type: "POWER_STATE",
+        settings: effectiveSettingsFor(settings, tabHostname(tab)),
+        power,
+      })
       .catch(() => {});
     notify(tab.id);
   }
   persistScans();
 }
+const tabHostname = (tab: { url?: string | undefined }) => {
+  try {
+    return new URL(tab.url || "").hostname;
+  } catch {
+    return "";
+  }
+};
 let settings: Settings = { ...defaults };
 let initialized: Promise<void> | undefined;
 const locks = new Map<string, Promise<unknown>>();
@@ -420,6 +433,9 @@ const init = () =>
         settings.askWhereToSave = defaults.askWhereToSave;
         settings.sequencePrefix = defaults.sequencePrefix;
       }
+      settings.siteProfiles = sanitizeSiteProfiles(settings.siteProfiles);
+      if (typeof settings.namingPreset !== "string")
+        settings.namingPreset = defaults.namingPreset;
       for (const [id, value] of Object.entries(r["scanRecovery"] || {})) {
         const scan = value as ScanSession;
         if (["running", "paused"].includes(scan.state)) {
@@ -636,6 +652,7 @@ function notify(tabId: number) {
         announceCollection(tabId);
         const tab = await chrome.tabs.get(tabId).catch(() => undefined);
         if (!tab) return;
+        const eff = effectiveSettingsFor(settings, tabHostname(tab));
         chrome.tabs
           .sendMessage(tabId, {
             type: "UI_STATE",
@@ -643,11 +660,11 @@ function notify(tabId: number) {
             ids: rs
               .filter(
                 (r) =>
-                  r.selected && eligibility(r, settings).state === "accepted",
+                  r.selected && eligibility(r, eff).state === "accepted",
               )
               .map((r) => r.id),
             count: rs.filter(
-              (r) => eligibility(r, settings).state === "accepted",
+              (r) => eligibility(r, eff).state === "accepted",
             ).length,
             collected: rs.length,
             included: rs.filter((r) => r.userIncluded).map((r) => r.id),
@@ -658,7 +675,7 @@ function notify(tabId: number) {
               .map((r) => ({ id: r.id, variants: r.variants })),
             mode: modes.get(tabId) || false,
             scan: scans.get(tabId) || idleScan,
-            settings,
+            settings: eff,
           })
           .catch(() => {});
         chrome.runtime.sendMessage({ type: "NOTICE", tabId }).catch(() => {});
@@ -1172,13 +1189,29 @@ async function runItem(job: DownloadJob, itemId: string) {
       });
       return;
     }
+    let prefix = job.delivery?.prefix || "";
+    if (job.namingPreset) {
+      let host = "images";
+      try {
+        host = new URL(actualUrl || item.record.displayed).hostname;
+      } catch {}
+      prefix = sanitize(
+        expandPreset(job.namingPreset, {
+          index:
+            (item.sequence ?? job.items.findIndex((i) => i.id === itemId)) + 1,
+          hostname: host,
+          date: new Date().toISOString().slice(0, 10),
+          title: item.record.name || "image",
+        }),
+      );
+    }
     const file = outputPath(
       job.folder,
       (item.sequence === undefined ? filename : sequentialFilename)(
         { ...item.record, displayed: actualUrl || item.record.displayed },
         item.sequence ?? job.items.findIndex((i) => i.id === itemId),
         fmt,
-        job.delivery?.prefix,
+        prefix,
       ),
     );
     await updateJob(job.id, (j) => {
@@ -1966,7 +1999,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
         return {
           power: powerFor(await chrome.tabs.get(tabId)),
           prefix: `${s.tab!.id}:${s.documentId || s.frameId}:`,
-          settings,
+          settings: effectiveSettingsFor(settings, tabHostname(s.tab || {})),
         };
       case "DISCOVER": {
         if (ui || !Array.isArray(m.records) || m.records.length > 60)
@@ -2612,23 +2645,25 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
             }
           })();
           const jobCollectionId = targetCollection?.id || first.collectionId;
+          const eff = effectiveSettingsFor(jobSettings, domain);
           const job: DownloadJob = {
             clientRequestId: m.requestId,
             ...(jobCollectionId ? { collectionId: jobCollectionId } : {}),
-            allowedFormats: [...jobSettings.allowedFormats],
+            allowedFormats: [...eff.allowedFormats],
             id: crypto.randomUUID(),
             tabId: targetCollection?.tabId ?? tabId,
             created: Date.now(),
             delivery: {
-              saveAs: jobSettings.askWhereToSave,
-              prefix: jobSettings.sequencePrefix,
+              saveAs: eff.askWhereToSave,
+              prefix: eff.sequencePrefix,
             },
-            folder: jobSettings.groupDownloads
+            ...(eff.namingPreset ? { namingPreset: eff.namingPreset } : {}),
+            folder: eff.groupDownloads
               ? outputPath(
-                  jobSettings.downloadFolder,
+                  eff.downloadFolder,
                   `${sanitize(domain)}/${new Date().toISOString().replace(/[:.]/g, "-")}`,
                 )
-              : jobSettings.downloadFolder,
+              : eff.downloadFolder,
             output: structuredClone(output),
             state: "running",
             items: rs.map((r, index) => ({

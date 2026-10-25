@@ -149,6 +149,21 @@ export type Settings = {
   concurrency: number;
   theme: ThemeId;
   dockOrientation: "horizontal" | "vertical";
+  /** Per-hostname overrides applied on top of the global settings. */
+  siteProfiles: Record<string, SiteProfile>;
+  /** Reusable naming preset applied to the filename prefix. */
+  namingPreset: string;
+};
+/** Fields a site profile may override; only these are resolved per host. */
+export type SiteProfile = {
+  allowedFormats?: string[];
+  smartCleanup?: boolean;
+  hideSmall?: boolean;
+  hideBranding?: boolean;
+  hideAvatars?: boolean;
+  minImageSize?: number;
+  downloadFolder?: string;
+  scanImages?: number;
 };
 export const defaults: Settings = {
   instagramStoriesEnabled: false,
@@ -172,7 +187,67 @@ export const defaults: Settings = {
   concurrency: 4,
   theme: "graphite",
   dockOrientation: "horizontal",
+  siteProfiles: {},
+  namingPreset: "",
 };
+
+/**
+ * Resolve the effective settings for a hostname: global settings with any
+ * defined profile fields layered on top. Unknown profiles and malformed
+ * values are ignored; the result is a full Settings object safe to publish
+ * to content scripts and to use for downloads.
+ */
+export function effectiveSettingsFor(settings: Settings, hostname: string): Settings {
+  const profile = settings.siteProfiles[hostname];
+  if (!profile) return settings;
+  const merged: Settings = { ...settings };
+  if (Array.isArray(profile.allowedFormats) && profile.allowedFormats.length)
+    merged.allowedFormats = [...profile.allowedFormats];
+  if (typeof profile.smartCleanup === "boolean")
+    merged.smartCleanup = profile.smartCleanup;
+  if (typeof profile.hideSmall === "boolean") merged.hideSmall = profile.hideSmall;
+  if (typeof profile.hideBranding === "boolean")
+    merged.hideBranding = profile.hideBranding;
+  if (typeof profile.hideAvatars === "boolean")
+    merged.hideAvatars = profile.hideAvatars;
+  if (typeof profile.minImageSize === "number" && profile.minImageSize >= 0)
+    merged.minImageSize = profile.minImageSize;
+  if (typeof profile.downloadFolder === "string")
+    merged.downloadFolder = profile.downloadFolder;
+  if (typeof profile.scanImages === "number" && profile.scanImages >= 0)
+    merged.scanImages = profile.scanImages;
+  return merged;
+}
+
+/** Context available to naming-preset tokens. */
+export type PresetContext = {
+  index: number;
+  hostname: string;
+  date: string;
+  title: string;
+};
+const PRESET_ESC = /{index}|{hostname}|{date}|{title}/g;
+/**
+ * Expand a naming template like "{hostname}-{date}-{index}" into a filename
+ * prefix. Unknown tokens are left as-is; the result is sanitized for the
+ * filesystem by the caller's normal prefix rules.
+ */
+export function expandPreset(template: string, ctx: PresetContext): string {
+  return template.replace(PRESET_ESC, (tok) => {
+    switch (tok) {
+      case "{index}":
+        return String(ctx.index);
+      case "{hostname}":
+        return ctx.hostname;
+      case "{date}":
+        return ctx.date;
+      case "{title}":
+        return ctx.title;
+      default:
+        return tok;
+    }
+  });
+}
 export type Output = {
   // "best" and "displayed" are conventional values; a job may also pin an
   // explicit variant URL, so the type is a plain string.
@@ -219,6 +294,7 @@ export type DownloadJob = {
   clientRequestId?: string;
   collectionId?: string;
   delivery?: { saveAs: boolean; prefix: string };
+  namingPreset?: string | undefined;
   allowedFormats?: string[];
   id: string;
   tabId: number;
