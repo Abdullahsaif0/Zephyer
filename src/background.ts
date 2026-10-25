@@ -976,11 +976,23 @@ async function enrich(record: ImageRecord) {
       )
     ) {
       try {
-        Object.assign(
-          v,
-          await processImage({ operation: "PROBE", url: v.url }),
-          { verified: true },
-        );
+        // Prefer header-sniffed dimensions from the cheap probe; only pay
+        // for a whole-file offscreen decode when the header layout is not
+        // parsable (AVIF, TIFF, SVG, truncated responses).
+        let dims = false;
+        try {
+          const probe = await probeImage(v.url);
+          if (probe.width && probe.height) {
+            Object.assign(v, { width: probe.width, height: probe.height });
+            dims = true;
+          }
+        } catch {}
+        if (!dims)
+          Object.assign(
+            v,
+            await processImage({ operation: "PROBE", url: v.url }),
+          );
+        Object.assign(v, { verified: true });
         changed = true;
       } catch (e) {
         v.probeError = String(e);

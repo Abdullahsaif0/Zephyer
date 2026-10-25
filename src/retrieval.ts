@@ -1,7 +1,10 @@
 import { boundedBlob, type RetrievalAttempt } from "./shared";
 import { imageFormats, normalizedFormat, sniffImage } from "./discovery";
+import { sniffDimensions } from "./dimensions";
 type Probe = {
   format: string;
+  width?: number | undefined;
+  height?: number | undefined;
   bytes?: number | undefined;
   error?: string | undefined;
   attempt: RetrievalAttempt;
@@ -50,7 +53,9 @@ export async function probeImage(
     result: "Unverified",
   };
   let format = "unknown",
-    bytes: number | undefined;
+    bytes: number | undefined,
+    width: number | undefined,
+    height: number | undefined;
   try {
     checkCooldown(url);
     const options = () => ({
@@ -97,6 +102,12 @@ export async function probeImage(
           await reader.cancel().catch(() => {});
         }
       format = sniffImage(new Uint8Array(chunks));
+      const head = new Uint8Array(chunks);
+      const dims = sniffDimensions(head);
+      if (dims) {
+        width = dims.width;
+        height = dims.height;
+      }
     }
     attempt.result = isImage(format)
       ? `Verified ${format}`
@@ -111,6 +122,8 @@ export async function probeImage(
   }
   const value = {
     format,
+    width,
+    height,
     bytes,
     error: isImage(format) ? undefined : attempt.result,
     attempt,
