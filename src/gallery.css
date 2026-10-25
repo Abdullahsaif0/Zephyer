@@ -674,3 +674,100 @@ body,
 .photo-check[aria-pressed="false"] .z-icon {
   opacity: 0;
 }
+
+/* Duplicate review */
+.photos-dups {
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  min-height: 100%;
+}
+.photos-dups-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--z-muted);
+}
+.dup-group {
+  background: var(--z-surface);
+  border: 1px solid var(--z-line);
+  border-radius: 14px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+.dup-group header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dup-group header strong {
+  font-size: 14px;
+}
+.dup-group header span {
+  color: var(--z-muted);
+  font-size: 12px;
+  margin-right: auto;
+}
+.dup-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.dup-group li {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  width: 96px;
+}
+.dup-thumb {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--z-line);
+  background: var(--z-glass);
+  padding: 0;
+}
+.dup-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dup-thumb .checkbox {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--z-accent);
+  color: var(--z-onAccent);
+  display: grid;
+  place-items: center;
+}
+.dup-thumb .checkbox .z-icon {
+  width: 14px;
+  height: 14px;
+}
+.dup-thumb:not([aria-pressed="true"]) .checkbox {
+  background: var(--z-surface);
+  border: 1px solid var(--z-line);
+  color: transparent;
+}
+.dup-name {
+  font-size: 12px;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--z-text);
+}

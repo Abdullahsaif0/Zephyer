@@ -18,6 +18,7 @@ import {
   type QueueView,
 } from "./shared";
 import { DiscoveryNotice } from "./discovery-notice";
+import type { DuplicateGroups } from "./duplicates";
 import { discoveryBucket } from "./discovery";
 import { eligibility } from "./discovery";
 import { Icon, useAppearance } from "./appearance-react";
@@ -55,6 +56,8 @@ function App() {
   const [output, setOutput] = useState<Output>({ ...defaultOutput }),
     [pending, setPending] = useState(0),
     [viewer, setViewer] = useState<{ ids: string[]; index: number }>();
+  const [dupGroups, setDupGroups] = useState<DuplicateGroups | null>(null),
+    [scanningDup, setScanningDup] = useState(false);
   const [viewport, setViewport] = useState({ width: 1000, height: 700 }),
     [scroll, setScroll] = useState(0);
   const scroller = useRef<HTMLDivElement>(null),
@@ -156,6 +159,35 @@ function App() {
     observer.observe(el);
     return () => { observer.disconnect(); };
   }, [loading]);
+  const loadDuplicates = async () => {
+    setScanningDup(true);
+    try {
+      const groups = await rpc<DuplicateGroups>({
+        type: "COLLECTION_DUPLICATES",
+        collectionId,
+      });
+      setDupGroups(Array.isArray(groups) ? groups : []);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanningDup(false);
+    }
+  };
+  const scanDuplicates = async () => {
+    setScanningDup(true);
+    try {
+      await rpc({ type: "COLLECTION_FINGERPRINT_SCAN", collectionId });
+      await loadDuplicates();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
+      setScanningDup(false);
+    }
+  };
+  useEffect(() => {
+    if (review === "duplicates" && !dupGroups && !scanningDup)
+      void loadDuplicates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [review]);
   async function command(request: GalleryCommand) {
     const key = request.type + (request.type === "JOB" ? request["id"] : "");
     const guarded = /DOWNLOAD|JOB/.test(request.type);
@@ -425,6 +457,7 @@ function App() {
             ["excluded", "Hidden"],
             ["pending", "Pending"],
             ["disabled", "Formats off"],
+            ["duplicates", "Duplicates"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -433,7 +466,13 @@ function App() {
             onClick={() => { setReview(value); }}
           >
             {label}
-            <span>{counts[value]}</span>
+            <span>
+              {value === "duplicates"
+                ? dupGroups
+                  ? dupGroups.reduce((n, g) => n + g.members.length, 0)
+                  : ""
+                : counts[value]}
+            </span>
           </button>
         ))}
       </nav>
@@ -472,7 +511,116 @@ function App() {
         tabIndex={-1}
         onScroll={(e) => { setScroll(e.currentTarget.scrollTop); }}
       >
-        {loading ? (
+        {review === "duplicates" ? (
+          <div className="photos-dups">
+            {scanningDup ? (
+              <div className="photos-empty">
+                <Icon name="scan" />
+                <h2>Scanning for duplicates</h2>
+                <p>Hashing images locally… this never leaves your browser.</p>
+              </div>
+            ) : !dupGroups?.length ? (
+              <div className="photos-empty">
+                <Icon name="search" />
+                <h2>No duplicates found</h2>
+                <p>
+                  Exact byte matches and visually similar images are grouped
+                  for review — nothing is merged or deleted automatically.
+                </p>
+                <button
+                  className="primary"
+                  onClick={() => { void scanDuplicates(); }}
+                >
+                  <Icon name="scan" />
+                  Scan for duplicates
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="photos-dups-toolbar">
+                  <span>
+                    {dupGroups.reduce((n, g) => n + g.members.length, 0)} images
+                    in {dupGroups.length}{" "}
+                    {dupGroups.length === 1 ? "group" : "groups"}
+                  </span>
+                  <button
+                    onClick={() => { void scanDuplicates(); }}
+                    disabled={scanningDup}
+                  >
+                    <Icon name="retry" />
+                    Rescan
+                  </button>
+                </div>
+                {dupGroups.map((group, gi) => (
+                  <section className="dup-group" key={gi}>
+                    <header>
+                      <strong>
+                        {group.kind === "exact"
+                          ? "Exact duplicates"
+                          : "Visually similar"}
+                      </strong>
+                      <span>{group.members.length} images</span>
+                      <button
+                        onClick={() =>
+                          void command({
+                            type: "COLLECTION_SELECT",
+                            ids: group.members.map((m) => m.recordId),
+                            value: true,
+                          })
+                        }
+                      >
+                        Select group
+                      </button>
+                    </header>
+                    <ul>
+                      {group.members.map((member) => {
+                        const selected = !!map.current.get(member.recordId)
+                          ?.selected;
+                        return (
+                          <li key={member.recordId}>
+                            <button
+                              className="dup-thumb"
+                              aria-label={
+                                selected
+                                  ? `Deselect ${member.name}`
+                                  : `Select ${member.name}`
+                              }
+                              aria-pressed={selected}
+                              onClick={() =>
+                                void command({
+                                  type: "COLLECTION_SELECT",
+                                  ids: [member.recordId],
+                                  value: !selected,
+                                })
+                              }
+                            >
+                              {member.displayed ? (
+                                <img
+                                  src={member.displayed}
+                                  alt={member.name}
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <span className="unavailable">Preview</span>
+                              )}
+                              <span className="checkbox">
+                                {selected ? <Icon name="check" /> : null}
+                              </span>
+                            </button>
+                            <span className="dup-name" title={member.name}>
+                              {member.name}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </>
+            )}
+          </div>
+        ) : loading ? (
           <div className="photos-empty">
             <Icon name="image" />
             <h2>Opening your photos</h2>

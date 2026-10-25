@@ -930,6 +930,59 @@ try {
 } catch (e) {
   console.error(e);
   process.exitCode = 1;
+  await test("duplicate review groups exact byte matches", async () => {
+    await page.goto(fixture.origin);
+    await activate(tabId);
+    const opened = await rpc({ type: "OPEN_GALLERY", tabId });
+    const cid = opened.collectionId;
+    assert(cid, "gallery must open with a collection");
+    // Two distinct URLs served with identical bytes (the fixture PNG) become
+    // exact duplicates; a third unique PNG stays alone.
+    await page.evaluate(() => {
+      for (const n of ["dup-a", "dup-b", "dup-uniq"]) {
+        const im = document.createElement("img");
+        im.src = `/${n}.png`;
+        im.width = 220;
+        im.height = 160;
+        im.alt = n;
+        document.body.append(im);
+      }
+    });
+    await wait(async () => {
+      const rs = (await snap()).records.filter((r) =>
+        r.variants.some((v) => v.url.includes("/dup-")),
+      );
+      return rs.length >= 3 ? rs : false;
+    });
+    let scan;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      scan = await rpc({
+        type: "COLLECTION_FINGERPRINT_SCAN",
+        collectionId: cid,
+      });
+      if (scan.failed === 0) break;
+      // The fixture shares one localhost port with /rate.png, whose 429
+      // seeds a host-wide backoff; retry until it clears.
+      await new Promise((r) => setTimeout(r, 7000));
+    }
+    assert.equal(scan.error, undefined, JSON.stringify(scan));
+    const groups = await rpc({
+      type: "COLLECTION_DUPLICATES",
+      collectionId: cid,
+    });
+    assert(Array.isArray(groups), "duplicates response should be an array");
+    const exact = groups.find((g) => g.kind === "exact");
+    assert(exact, "expected at least one exact-duplicate group");
+    const ids = exact.members.map((m) => m.recordId);
+    const dupA = (await snap()).records.find((r) =>
+      r.variants.some((v) => v.url.endsWith("/dup-a.png")),
+    );
+    const dupB = (await snap()).records.find((r) =>
+      r.variants.some((v) => v.url.endsWith("/dup-b.png")),
+    );
+    assert(dupA && dupB, "missing injected records");
+    assert(ids.includes(dupA.id) && ids.includes(dupB.id), JSON.stringify(ids));
+  });
   try {
     await writeFile(
       resolve(dir, "failure-state.json"),

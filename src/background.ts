@@ -20,8 +20,9 @@ import {
   retainGallery,
   updateCollectionPinned,
 } from "./collections";
-import { getCollection, collectionRecords, patchCollection } from "./db";
+import { getCollection, collectionRecords, patchCollection, getFingerprints, putFingerprints } from "./db";
 import { pagePower, mergeSiteRules } from "./power";
+import { groupDuplicates } from "./duplicates";
 import { validHostname, preferenceError } from "./preferences";
 import {
   archiveFits,
@@ -2125,6 +2126,68 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
           })
           .catch(() => {});
         return true;
+      }
+      case "COLLECTION_FINGERPRINT_SCAN": {
+        const cid = targetCollection?.id;
+        if (!cid) throw Error("Invalid collection");
+        const records = await collectionRecords(cid);
+        const existing = await getFingerprints(records.map((r) => r.id));
+        const have = new Set(
+          existing.filter((p) => p.sha256).map((p) => p.recordId),
+        );
+        const todo = records.filter(
+          (r) => !have.has(r.id) && r.variants.length > 0,
+        );
+        let scanned = 0,
+          failed = 0,
+          next = 0;
+        const worker = async () => {
+          while (next < todo.length) {
+            const r = todo[next++];
+            if (!r) break;
+            const best = candidates(r, "best")[0] || r.variants[0];
+            if (!best) continue;
+            try {
+              const { sha256 } = await processImage({
+                operation: "DIGEST",
+                url: best.url,
+              });
+              let phash = "";
+              try {
+                phash = (
+                  await processImage({ operation: "PHASH", url: best.url })
+                ).phash;
+              } catch {}
+              await putFingerprints([
+                {
+                  recordId: r.id,
+                  sha256,
+                  phash,
+                  updated: Date.now(),
+                },
+              ]);
+              scanned++;
+            } catch (e) {
+              failed++;
+              await putFingerprints([
+                {
+                  recordId: r.id,
+                  failed: String(e).slice(0, 120),
+                  updated: Date.now(),
+                },
+              ]);
+            }
+          }
+        };
+        await Promise.all([worker(), worker()]);
+        return { scanned, failed };
+      }
+      case "COLLECTION_DUPLICATES": {
+        const cid = targetCollection?.id;
+        if (!cid) throw Error("Invalid collection");
+        const records = await collectionRecords(cid);
+        const prints = await getFingerprints();
+        return groupDuplicates(prints, records).slice(0, 200);
       }
       case "COLLECTION_SELECT":
       case "SELECT":

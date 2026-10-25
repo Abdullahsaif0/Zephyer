@@ -320,6 +320,8 @@ export type Message =
       collectionId: string;
       pinned: boolean;
     }
+  | { type: "COLLECTION_FINGERPRINT_SCAN"; collectionId: string }
+  | { type: "COLLECTION_DUPLICATES"; collectionId: string }
   | {
       type: "COLLECTION_DOWNLOAD";
       collectionId: string;
@@ -412,6 +414,8 @@ export const protocolRegistry = {
   COLLECTION_SELECT: "ui",
   COLLECTION_INCLUDE: "ui",
   COLLECTION_PIN: "ui",
+  COLLECTION_FINGERPRINT_SCAN: "ui",
+  COLLECTION_DUPLICATES: "ui",
   COLLECTION_DOWNLOAD: "ui",
   COLLECTION_PREVIEW: "ui",
   PREVIEW_RELEASE: "ui",
