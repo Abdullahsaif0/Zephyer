@@ -12,7 +12,7 @@ function App() {
   const load = () =>
     rpc<ActivationStatus>({ type: "ACTIVATION_STATUS", tabId })
       .then(setStatus)
-      .catch((e) => { setError(String(e)); });
+      .catch((e: unknown) => { setError(String(e)); });
   useEffect(() => {
     void load();
   }, []);

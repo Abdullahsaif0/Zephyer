@@ -41,22 +41,22 @@ export function JobCard({
       <p>{j.summary || `${done} saved · ${failed} failed`}</p>
       <div className="button-row">
         {j.state === "running" && (
-          <button disabled={pending} onClick={() => onCommand("pause")}>
+          <button disabled={pending} onClick={() => { onCommand("pause"); }}>
             <Icon name="pause" /> Pause
           </button>
         )}
         {j.state === "paused" && (
-          <button disabled={pending} onClick={() => onCommand("resume")}>
+          <button disabled={pending} onClick={() => { onCommand("resume"); }}>
             <Icon name="play" /> Resume
           </button>
         )}
         {["running", "paused"].includes(j.state) && (
-          <button disabled={pending} onClick={() => onCommand("cancel")}>
+          <button disabled={pending} onClick={() => { onCommand("cancel"); }}>
             <Icon name="close" /> Cancel
           </button>
         )}
         {j.state !== "cancelled" && failed > 0 && (
-          <button disabled={pending} onClick={() => onCommand("retry")}>
+          <button disabled={pending} onClick={() => { onCommand("retry"); }}>
             <Icon name="retry" /> Retry failed
           </button>
         )}

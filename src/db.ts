@@ -1,5 +1,9 @@
 import type { ImageRecord, DownloadJob, Collection } from "./shared";
 let connection: Promise<IDBDatabase>;
+/** DOMException is an Error at runtime but not in the IDB typings; wrapping
+ *  keeps Promise rejection reasons uniformly Error instances. */
+const reason = (e: unknown) =>
+  e instanceof Error ? e : Error(String(e));
 function db() {
   return (connection ??= new Promise((resolve, reject) => {
     const r = indexedDB.open("zephyer", 3);
@@ -31,7 +35,7 @@ function db() {
     };
     r.onerror = () => {
       connection = undefined!;
-      reject(r.error);
+      reject(reason(r.error));
     };
   }));
 }
@@ -40,7 +44,7 @@ export async function all<T>(store: string): Promise<T[]> {
   return new Promise((resolve, reject) => {
     const r = d.transaction(store).objectStore(store).getAll();
     r.onsuccess = () => { resolve(r.result); };
-    r.onerror = () => { reject(r.error); };
+    r.onerror = () => { reject(reason(r.error)); };
   });
 }
 export async function put(store: string, values: unknown[]) {
@@ -85,8 +89,8 @@ export async function put(store: string, values: unknown[]) {
       };
     }
     tx.oncomplete = () => { resolve(); };
-    tx.onerror = () => { reject(tx.error); };
-    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
   });
 }
 export async function removeTab(tabId: number) {
@@ -102,8 +106,8 @@ export async function removeTab(tabId: number) {
       }
     };
     tx.oncomplete = () => { resolve(); };
-    tx.onerror = () => { reject(tx.error); };
-    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
   });
 }
 export async function getRecords(tabId: number): Promise<ImageRecord[]> {
@@ -134,8 +138,8 @@ async function readRecordBatch(ids: string[]): Promise<ImageRecord[]> {
       };
     }
     tx.oncomplete = () => { resolve(values); };
-    tx.onerror = () => { reject(tx.error); };
-    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
   });
 }
 
@@ -146,7 +150,7 @@ export async function getCollection(
   return new Promise((resolve, reject) => {
     const r = d.transaction("collections").objectStore("collections").get(id);
     r.onsuccess = () => { resolve(r.result); };
-    r.onerror = () => { reject(r.error); };
+    r.onerror = () => { reject(reason(r.error)); };
   });
 }
 export async function collectionRecords(id: string): Promise<ImageRecord[]> {
@@ -168,7 +172,7 @@ async function pagedRecords(
         .index(index)
         .getAll(range, 200);
       r.onsuccess = () => { resolve(r.result); };
-      r.onerror = () => { reject(r.error); };
+      r.onerror = () => { reject(reason(r.error)); };
     });
     values.push(...rows);
     if (rows.length < 200) return values;
@@ -190,8 +194,8 @@ export async function deleteCollection(id: string) {
       }
     };
     tx.oncomplete = () => { resolve(); };
-    tx.onerror = () => { reject(tx.error); };
-    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
   });
 }
 
@@ -208,8 +212,8 @@ export async function patchCollection(
       if (r.result) store.put({ ...r.result, ...changes });
     };
     tx.oncomplete = () => { resolve(); };
-    tx.onerror = () => { reject(tx.error); };
-    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
   });
 }
 export async function deleteRecords(ids: string[]) {
@@ -218,7 +222,7 @@ export async function deleteRecords(ids: string[]) {
     const tx = d.transaction("records", "readwrite");
     for (const id of ids) tx.objectStore("records").delete(id);
     tx.oncomplete = () => { resolve(); };
-    tx.onerror = () => { reject(tx.error); };
-    tx.onabort = () => { reject(tx.error || new Error("Database transaction aborted")); };
+    tx.onerror = () => { reject(reason(tx.error)); };
+    tx.onabort = () => { reject(reason(tx.error || new Error("Database transaction aborted"))); };
   });
 }

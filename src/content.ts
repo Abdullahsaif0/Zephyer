@@ -1745,7 +1745,7 @@ function startContent() {
           f.onerror = () => { reply({ error: "Image read failed" }); };
           f.readAsDataURL(b);
         })
-        .catch((e) => { reply({ error: String(e) }); });
+        .catch((e: unknown) => { reply({ error: String(e) }); });
       return true;
     }
     return false;

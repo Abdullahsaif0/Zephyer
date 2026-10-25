@@ -119,7 +119,7 @@ const tabField = <V>(
     const t = tabs.get(id);
     return t ? pick(t) : undefined;
   },
-  set: (id: number, v: V): void => put(ensureTab(id), v),
+  set: (id: number, v: V): void => { put(ensureTab(id), v); },
   delete: (id: number): void => {
     const t = tabs.get(id);
     if (t) put(t, undefined);
@@ -142,7 +142,7 @@ const tabField = <V>(
   },
 });
 const tabFlag = (pick: (t: TabState) => boolean, put: (t: TabState, v: boolean) => void) => ({
-  add: (id: number): void => put(ensureTab(id), true),
+  add: (id: number): void => { put(ensureTab(id), true); },
   has: (id: number): boolean => {
     const t = tabs.get(id);
     return !!t && pick(t);
@@ -345,7 +345,7 @@ async function commitSettings(next: Settings) {
   persistScans();
 }
 let settings: Settings = { ...defaults };
-let initialized: Promise<void>;
+let initialized: Promise<void> | undefined;
 const locks = new Map<string, Promise<unknown>>();
 function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const p = (locks.get(key) || Promise.resolve()).catch(() => {}).then(fn);
@@ -1029,6 +1029,9 @@ async function runItem(job: DownloadJob, itemId: string) {
       i.attempts++;
       i.error = undefined;
     });
+    // TS proves updateJob always invokes the mutator today; this guard is
+    // deliberate insurance if its claim behavior ever changes.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!claimed) return;
     item = job.items.find((i) => i.id === itemId)!;
     if (job.output.quality === "best" && item.attempts === 1) {
@@ -1257,6 +1260,8 @@ async function runZip(job: DownloadJob) {
         i.attempts++;
         i.error = undefined;
       });
+      // Deliberate insurance; see runItem's identical guard.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (!claimed) break;
       let preparedBlob: string | undefined;
       const trace: RetrievalAttempt[] = [];
@@ -1465,7 +1470,7 @@ async function reconcileDownload(id: number) {
 }
 let recovery: Promise<void> | undefined;
 function recover(): Promise<void> {
-  return (recovery ??= recoverJobs().catch((e) => {
+  return (recovery ??= recoverJobs().catch((e: unknown) => {
     recovery = undefined;
     throw e;
   }));
@@ -1550,7 +1555,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
     chrome.sidePanel
       .open({ tabId: id })
       .then(() => { reply(true); })
-      .catch((e) => { reply({ error: String(e) }); });
+      .catch((e: unknown) => { reply({ error: String(e) }); });
     return true;
   }
   if (!m || typeof m.type !== "string") {
@@ -2636,7 +2641,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
     }
   })()
     .then(reply)
-    .catch((e) => { reply({ error: e instanceof Error ? e.message : String(e) }); });
+    .catch((e: unknown) => { reply({ error: e instanceof Error ? e.message : String(e) }); });
   return true;
 });
 chrome.downloads.onChanged.addListener((delta) => {

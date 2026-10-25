@@ -70,7 +70,7 @@ export function Photo({
         owned = r.url;
         setUrl(r.url);
       })
-      .catch((e) => {
+      .catch((e: unknown) => {
         if (!controller.signal.aborted) setError(String(e));
       });
     return () => {
@@ -232,7 +232,7 @@ export function Viewer({
         setUrl(r.url);
         setFallback(r.fallback);
       })
-      .catch((e) => {
+      .catch((e: unknown) => {
         if (!controller.signal.aborted) setError(String(e));
       });
     return () => {

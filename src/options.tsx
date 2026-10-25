@@ -138,7 +138,7 @@ function Options() {
     setS(next);
     persist(next, sites, [k]);
   };
-  async function changeAppearance(patch: {
+  function changeAppearance(patch: {
     theme?: Settings["theme"];
     dockOrientation?: Settings["dockOrientation"];
   }) {
@@ -192,7 +192,7 @@ function Options() {
               aria-pressed={s.theme === id}
               aria-label={`${themes[id].name} theme`}
               onClick={() => {
-                void changeAppearance({ theme: id });
+                changeAppearance({ theme: id });
               }}
               style={
                 {
@@ -237,11 +237,11 @@ function Options() {
           <select
             aria-label="Dock orientation"
             value={s.dockOrientation}
-            onChange={(e) =>
-              void changeAppearance({
+            onChange={(e) => {
+              changeAppearance({
                 dockOrientation: e.target.value as Settings["dockOrientation"],
-              })
-            }
+              });
+            }}
           >
             <option value="horizontal">Horizontal · compact bar</option>
             <option value="vertical">Vertical · slim rail</option>

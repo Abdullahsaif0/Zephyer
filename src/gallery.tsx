@@ -188,13 +188,13 @@ function App() {
   );
   const counts = useMemo(
     () => ({
-      accepted: classified.filter((r) => r.eligibility?.state === "accepted")
+      accepted: classified.filter((r) => r.eligibility.state === "accepted")
         .length,
       disabled: classified.filter((r) => discoveryBucket(r) === "disabled")
         .length,
       excluded: classified.filter((r) => discoveryBucket(r) === "excluded")
         .length,
-      pending: classified.filter((r) => r.eligibility?.state === "pending")
+      pending: classified.filter((r) => r.eligibility.state === "pending")
         .length,
     }),
     [classified],
@@ -218,7 +218,7 @@ function App() {
     return values;
   }, [classified, review, query, min, format, sort]);
   const selected = classified.filter(
-    (r) => r.selected && r.eligibility?.state === "accepted",
+    (r) => r.selected && r.eligibility.state === "accepted",
   );
   const size = density === "small" ? 110 : density === "large" ? 240 : 172,
     gap = 5,

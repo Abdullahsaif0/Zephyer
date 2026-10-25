@@ -17,6 +17,7 @@ beforeEach(() => {
         .mockResolvedValue({ id: 1, url: "https://www.instagram.com/p/test/" }),
       sendMessage: vi
         .fn()
+        // eslint-disable-next-line @typescript-eslint/require-await -- async API mock
         .mockImplementation(async (_id, m) =>
           m.type === "PING"
             ? { version: "1.7.0", initialized: true }
@@ -48,10 +49,12 @@ describe("activation handshake", () => {
   });
   it("retries once after navigation interrupts injection", async () => {
     let doc = "document-1";
+    // eslint-disable-next-line @typescript-eslint/require-await -- async API mock
     api.webNavigation.getFrame.mockImplementation(async () => ({
       documentId: doc,
     }));
     api.tabs.sendMessage.mockRejectedValueOnce(Error("No receiver"));
+    // eslint-disable-next-line @typescript-eslint/require-await -- async API mock
     api.scripting.executeScript.mockImplementationOnce(async () => {
       doc = "document-2";
       throw Error("Frame changed");
@@ -70,6 +73,7 @@ describe("activation handshake", () => {
     expect(api.scripting.executeScript).not.toHaveBeenCalled();
   });
   it("does not acknowledge an invisible dock", async () => {
+    // eslint-disable-next-line @typescript-eslint/require-await -- async API mock
     api.tabs.sendMessage.mockImplementation(async (_id: number, m: any) =>
       m.type === "PING"
         ? { version: "1.7.0", initialized: true }
@@ -104,7 +108,7 @@ describe("activation handshake", () => {
     });
     const commit = vi.fn().mockResolvedValue(undefined),
       started = Date.now();
-    const result = activateReliably(6, commit).catch((error) => error);
+    const result = activateReliably(6, commit).catch((error: unknown) => error);
     await vi.runAllTimersAsync();
     expect(await result).toBeInstanceOf(Error);
     expect(Date.now() - started).toBeLessThanOrEqual(10075);

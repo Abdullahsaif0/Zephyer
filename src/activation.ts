@@ -130,7 +130,7 @@ export function activateReliably(tabId: number, commit: () => Promise<void>) {
           });
           while (true) {
             const p = await send({ type: "PING" });
-            if (p?.initialized) break;
+            if (p.initialized) break;
             await new Promise((r) => setTimeout(r, 75));
             check();
           }

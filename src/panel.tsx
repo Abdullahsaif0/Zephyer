@@ -312,7 +312,7 @@ function App() {
               !data.records.some((r) => r.eligibility?.state === "accepted")
             }
             onClick={() =>
-              void rpc({ type: "OPEN_GALLERY", tabId }).catch((e) => { setError(String(e)); },
+              void rpc({ type: "OPEN_GALLERY", tabId }).catch((e: unknown) => { setError(String(e)); },
               )
             }
           >

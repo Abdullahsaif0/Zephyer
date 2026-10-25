@@ -283,7 +283,7 @@ chrome.runtime.onMessage.addListener((m, s, reply) => {
       }
       reply(result);
     })
-    .catch((e) => { reply({ error: String(e) }); })
+    .catch((e: unknown) => { reply({ error: String(e) }); })
     .finally(() => activeOperations--);
   return true;
 });
